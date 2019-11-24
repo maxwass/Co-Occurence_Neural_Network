@@ -56,42 +56,46 @@ def borderLocPixel(fmWidth, borderSize, p_index):
 
     return [LEFT,RIGHT,TOP,BOTTOM]
 
-def getNeighbors(fmWidth, spatialFilterWidth, p_index):
+def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
     # assuming square feature map Height = Width = fmWidth
     # assuming stride = 1
     # assuming fmWidth > spatialFilterWidth
     assert fmWidth>spatialFilterWidth, \
-            print(f'spat_filt_width {spatialFilterWidth} >= ftre_map_width {fmWidth}')
+            f'spat_filt_width {spatialFilterWidth} >= ftre_map_width {fmWidth}'
     assert len(p_index)==4, \
-            print(f'index must be 4 dimensional: (Batch Size, # Channels, \
-            Height, Width)')
+            f'index must be 4 dimensional: (Batch Size, # Channels, \
+            Height, Width)'
     assert all(p_index[i]>=0 for i in range(len(p_index))), \
-            print(f'negative coordinates in index: {p_index}')
+            f'negative coordinates in index: {p_index}'
+    borderSize = np.floor_divide(spatialFilterWidth,2)
+    assert 2*borderSize<fmWidth, \
+            f'spatial filter width too large for feature map width\
+            a pixel can be in both LEFT&RIGHT or TOP&BOTTOM'
 
+    """
     print('INPUTS')
     print(f'fmWidth {fmWidth}, spatialFilterWidth {spatialFilterWidth}')
     print(f'p_index {p_index}')
-
-    borderSize = np.floor_divide(spatialFilterWidth,2)
-    #print(f'borderSize = int_div(spatialFilterWidth,2)=> {borderSize}')
+    print(f'borderSize = int_div(spatialFilterWidth,2)=> {borderSize}')
+    """
 
     #p_index = (Batch Size, # channels, Height, Width)
     # columns <==>  width
     # rows    <==>  height
     rowIndx, colIndx = p_index[2], p_index[3]
-    assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
+    assert(0 <= rowIndx <= fmWidth-1) #index cannot be outside of fm
     assert(0 <= colIndx <= fmWidth-1)
-    p_loc = borderLocPixel(fmWidth, borderSize, p_index)
-    rows, cols = [], []
+    [LEFT,RIGHT,TOP,BOTTOM] = borderLocPixel(fmWidth, borderSize, p_index)
 
     #We now know if pixel p is on the border, and if so, which part. Use this
-    # to construct limits of the row/cols of p's neighborhood
-    """
-    if(LEFT): cols = ...
-    elif(RIGHT):
-    else:
+    # to construct limits of the row/cols of p's 2D neighborhood
+    rowLims, colLims = [], []
+    if(LEFT):     colLims = [0,colIndx+borderSize]
+    elif(RIGHT):  colLims = [colIndx-borderSize, fmWidth-1]
+    else:         colLims = [colIndx-borderSize,colIndx+borderSize]
 
-    if(TOP):
-    elif(BOTTOM):
-    else:
-    """
+    if(TOP):      rowLims = [0,rowIndx+borderSize]
+    elif(BOTTOM): rowLims = [rowIndx-borderSize, fmWidth-1]
+    else:         rowLims = [rowIndx-borderSize,rowIndx+borderSize]
+
+    return rowLims, colLims
