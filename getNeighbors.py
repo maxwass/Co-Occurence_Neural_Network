@@ -25,7 +25,7 @@ def createHigherDimInd(extraDimRange, indc):
     return indeces
 
 
-def typeOfPixel(fmWidth, borderSize, p_index):
+def borderLocPixel(fmWidth, borderSize, p_index):
     #LEFT, RIGHT, TOP, BOTTOM, NONE
 
     #p_index = (Batch Size, # channels, Height, Width)
@@ -81,7 +81,7 @@ def getNeighbors(fmWidth, spatialFilterWidth, p_index):
     rowIndx, colIndx = p_index[2], p_index[3]
     assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
     assert(0 <= colIndx <= fmWidth-1)
-    p_loc = typeOfPixel(fmWidth, borderSize, p_index)
+    p_loc = borderLocPixel(fmWidth, borderSize, p_index)
     rows, cols = [], []
 
     #We now know if pixel p is on the border, and if so, which part. Use this
