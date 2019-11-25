@@ -2,6 +2,7 @@ import torch
 import time
 import numpy as np
 
+chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', np.int16)])
 #indc is list of tuples
 #Input:  list of tuple indeces of dimension N-1, range of values for
 #  the new (first) higher dimension
@@ -24,6 +25,37 @@ def createHigherDimInd(extraDimRange, indc):
             indeces.append(newInd)
     return indeces
 
+
+def getNeighborhoodIndeces(fmWidth, numChannels, sfDims, p):
+
+    sfWidth, sfDepth = sfDims[1],sfDims[2] #Height, Width, Depth
+    bS = np.floor_divide(sfWidth,2)
+    pChan,pRow,pCol = p[1], p[2],p[3]
+    rows, cols = inChannelNeighbors(fmWidth, sfWidth, p)
+    nC         = neighborChannels(numChannels, sfDepth, p)
+
+    print(f'chan,(row,col): {p[1]}, ({p[2]},{p[3]})')
+    print(f'rowsLims: {rows}')
+    print(f'colLims:  {cols}')
+    print(f'Channels: {nC}')
+    #create 3D indeces
+    #TO DO:
+    #predefine array to make faster: compare this to simple array append
+    #map this onto 3D tensor?
+    neighbors = np.zeros(len(rows)*len(cols)*len(nC),dtype=chan_row_col_dtype)#('int16,int16,int16'))
+    spatialWieghtIndxNeighbors=np.zeros(len(rows)*len(cols)*len(nC),dtype=chan_row_col_dtype)
+    neighbors.fill(np.nan) #will crash in indexing if we dont fill all of them
+    spatialWieghtIndxNeighbors.fill(np.nan) #will crash in indexing if we dont fill all of them
+
+    i = 0
+    for indxChan, chan in enumerate(nC):
+        for row in rows:
+            for col in cols:
+                neighbors[i] = (chan,row,col) #this is likely cast to dtype^ Access unclear
+                spatialWieghtIndxNeighbors[i] = (indxChan,pRow-row-bS,pCol-col-bS)#TODO
+                i+=1
+
+    return spatialWieghtIndxNeighbors, neighbors
 
 def borderLocPixel(fmWidth, borderSize, p_index):
     #LEFT, RIGHT, TOP, BOTTOM, NONE
@@ -104,7 +136,7 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
 #       and spatialFilterDepth = 3 ---> output = channels 2,3,4
 # Ex) if numChannels=5 in the layer, current output channel p_index[1]=0,
  #       and spatialFilterDepth = 3 ---> output = channels 4,0,1 (wraps around)
-def getNeighborChannels(numChannels, spatialFilterDepth, p_index):
+def neighborChannels(numChannels, spatialFilterDepth, p_index):
     ds = np.floor_divide(spatialFilterDepth,2) # borderSize for depth
     outChannel = p_index[1]
 

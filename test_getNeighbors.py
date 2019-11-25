@@ -92,84 +92,94 @@ for p in mdl:
             \n\t\t\trowLims:{rowLims}, colLims: {colLims}'
 
 
-#getNeighborChannels
+#neighborChannels
 #invariant: sfDepth <= numChannels
 numChannels, sfDepth = 3, 3
-nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,0,0,0))
 assert ([2,0,1]==nCs).all(), \
         f'output channel is 0th one'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,1,0,0))
 assert ([0,1,2]==nCs).all(), \
         f'output channel is middle'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,2,0,0))
 assert ([1,2,0]==nCs).all(), \
         f'output channel is (numChan-1)th one'
 
 numChannels, sfDepth = 8, 3
-nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,0,0,0))
 assert ([7,0,1]==nCs).all(), \
          f'output channel is 0th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,1,0,0))
 assert ([0,1,2]==nCs).all(), \
         f'output channel is 1st of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,2,0,0))
 assert ([1,2,3]==nCs).all(), \
         f'output channel is 2nd of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,3,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,3,0,0))
 assert ([2,3,4]==nCs).all(), \
         f'output channel is 3rd of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,5,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,5,0,0))
 assert ([4,5,6]==nCs).all(), \
         f'output channel is 5th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,6,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,6,0,0))
 assert ([5,6,7]==nCs).all(), \
         f'output channel is 6th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,7,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,7,0,0))
 assert ([6,7,0]==nCs).all(), \
         f'output channel is 7th of 7'
 
 
 numChannels, sfDepth = 8, 5
-nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,0,0,0))
 assert ([6,7,0,1,2]==nCs).all(), \
          f'output channel is 0th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,1,0,0))
 assert ([7,0,1,2,3]==nCs).all(), \
         f'output channel is 1st of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,2,0,0))
 assert ([0,1,2,3,4]==nCs).all(), \
         f'output channel is 2nd of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,3,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,3,0,0))
 assert ([1,2,3,4,5]==nCs).all(), \
         f'output channel is 3rd of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,5,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,5,0,0))
 assert ([3,4,5,6,7]==nCs).all(), \
         f'output channel is 5th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,6,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,6,0,0))
 assert ([4,5,6,7,0]==nCs).all(), \
         f'output channel is 6th of 7'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,7,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,7,0,0))
 assert ([5,6,7,0,1]==nCs).all(), \
         f'output channel is 7th of 7'
 
 
 numChannels, sfDepth = 128, 3
-nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,0,0,0))
 assert ([127,0,1]==nCs).all(), \
          f'output channel is 0th of 127'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,1,0,0))
 assert ([0,1,2]==nCs).all(), \
         f'output channel is 1st of 127'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,2,0,0))
 assert ([1,2,3]==nCs).all(), \
         f'output channel is 2nd of 127'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,125,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,125,0,0))
 assert ([124,125,126]==nCs).all(), \
         f'output channel is 125th of 127'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,126,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,126,0,0))
 assert ([125,126,127]==nCs).all(), \
         f'output channel is 126th of 127'
-nCs = getNeighborChannels(numChannels, sfDepth, (0,127,0,0))
+nCs = neighborChannels(numChannels, sfDepth, (0,127,0,0))
 assert ([126,127,0]==nCs).all(), \
         f'output channel is 127th of 127'
 
+
+
+#getNeighborhoodIndeces
+fmWidth,numChannels,sfDims = 8,128,(3,3,3) #Height, Width, Depth
+chan = 1
+wNieghbors, nieghbors = getNeighborhoodIndeces(fmWidth, numChannels, sfDims, (0,chan,0,0))
+print(wNieghbors)
+print(nieghbors)
+chan = 1
+#print(getNeighborhoodIndeces(fmWidth, numChannels, sfDims, (0,chan,0,0)))
