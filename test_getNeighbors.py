@@ -31,8 +31,7 @@ for i in np.arange(borderSize,fmWidth-1-borderSize):
         m = (batch,chan,i,j)
         mdl.append(m)
 
-"""
-## test if borderLocPixel correctly identifies where on border pixel is
+## borderLocPixel
 left,right,top,bot = 0,1,2,3
 for p in ls:
     assert borderLocPixel(fmWidth,borderSize,p)[left], \
@@ -50,9 +49,8 @@ for p in bs:
 for p in mdl:
     onBorder = any(borderLocPixel(fmWidth,borderSize,p))
     assert not onBorder, "{0} should not be on border".format(p)
-"""
 
-#inChannel Neighbors
+#inChannelNeighbors
 for p in ls:
     rowLims, colLims = inChannelNeighbors(fmWidth, sfWidth, p)
     col = p[3]
@@ -60,8 +58,6 @@ for p in ls:
     assert c ,\
             f'wrong 2D neighbor calc: LEFT pixel {p}, bS:{borderSize}:\
             \n\t\t\tcolLims: {colLims}'
-    #print("\n(row,col): ({0},{1})".format(p[2],p[3]))
-    #print("colLims: {0} -> {1}".format(colLims[0], colLims[1]))
 for p in rs:
     rowLims, colLims = inChannelNeighbors(fmWidth, sfWidth, p)
     col = p[3]
@@ -69,8 +65,6 @@ for p in rs:
     assert c ,\
             f'wrong 2D neighbor calc: RIGHT pixel {p}, bS:{borderSize}:\
             \n\t\t\tcolLims: {colLims}'
-    #print("\n(row,col): ({0},{1})".format(p[2],p[3]))
-    #print("colLims: {0} -> {1}".format(colLims[0], colLims[1]))
 
 for p in ts:
     rowLims, colLims = inChannelNeighbors(fmWidth, sfWidth, p)
@@ -79,8 +73,6 @@ for p in ts:
     assert r ,\
             f'wrong 2D neighbor calc: TOP pixel {p}, bS:{borderSize}:\
             \n\t\t\trowLims: {rowLims}'
-    #print("\n(row,col): ({0},{1})".format(p[2],p[3]))
-    #print("rowLims: {0} -> {1}".format(colLims[0], colLims[1]))
 
 for p in bs:
     rowLims, colLims = inChannelNeighbors(fmWidth, sfWidth, p)
@@ -89,8 +81,6 @@ for p in bs:
     assert r ,\
             f'wrong 2D neighbor calc: TOP pixel {p}, bS:{borderSize}:\
             \n\t\t\trowLims: {rowLims}'
-    #print("\n(row,col): ({0},{1})".format(p[2],p[3]))
-    #print("rowLims: {0} -> {1}".format(colLims[0], colLims[1]))
 
 for p in mdl:
     rowLims, colLims = inChannelNeighbors(fmWidth, sfWidth, p)
@@ -100,7 +90,86 @@ for p in mdl:
     assert r and c ,\
             f'wrong 2D neighbor calc: MIDDLE pixel {p}, bS:{borderSize}:\
             \n\t\t\trowLims:{rowLims}, colLims: {colLims}'
-    #print("\n(row,col): ({0},{1})".format(p[2],p[3]))
-    #print("rowLims: {0} -> {1}".format(rowLims[0], rowLims[1]))
-    #print("colLims: {0} -> {1}".format(colLims[0], colLims[1]))
+
+
+#getNeighborChannels
+#invariant: sfDepth <= numChannels
+numChannels, sfDepth = 3, 3
+nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+assert ([2,0,1]==nCs).all(), \
+        f'output channel is 0th one'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+assert ([0,1,2]==nCs).all(), \
+        f'output channel is middle'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+assert ([1,2,0]==nCs).all(), \
+        f'output channel is (numChan-1)th one'
+
+numChannels, sfDepth = 8, 3
+nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+assert ([7,0,1]==nCs).all(), \
+         f'output channel is 0th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+assert ([0,1,2]==nCs).all(), \
+        f'output channel is 1st of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+assert ([1,2,3]==nCs).all(), \
+        f'output channel is 2nd of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,3,0,0))
+assert ([2,3,4]==nCs).all(), \
+        f'output channel is 3rd of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,5,0,0))
+assert ([4,5,6]==nCs).all(), \
+        f'output channel is 5th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,6,0,0))
+assert ([5,6,7]==nCs).all(), \
+        f'output channel is 6th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,7,0,0))
+assert ([6,7,0]==nCs).all(), \
+        f'output channel is 7th of 7'
+
+
+numChannels, sfDepth = 8, 5
+nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+assert ([6,7,0,1,2]==nCs).all(), \
+         f'output channel is 0th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+assert ([7,0,1,2,3]==nCs).all(), \
+        f'output channel is 1st of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+assert ([0,1,2,3,4]==nCs).all(), \
+        f'output channel is 2nd of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,3,0,0))
+assert ([1,2,3,4,5]==nCs).all(), \
+        f'output channel is 3rd of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,5,0,0))
+assert ([3,4,5,6,7]==nCs).all(), \
+        f'output channel is 5th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,6,0,0))
+assert ([4,5,6,7,0]==nCs).all(), \
+        f'output channel is 6th of 7'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,7,0,0))
+assert ([5,6,7,0,1]==nCs).all(), \
+        f'output channel is 7th of 7'
+
+
+numChannels, sfDepth = 128, 3
+nCs = getNeighborChannels(numChannels, sfDepth, (0,0,0,0))
+assert ([127,0,1]==nCs).all(), \
+         f'output channel is 0th of 127'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,1,0,0))
+assert ([0,1,2]==nCs).all(), \
+        f'output channel is 1st of 127'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,2,0,0))
+assert ([1,2,3]==nCs).all(), \
+        f'output channel is 2nd of 127'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,125,0,0))
+assert ([124,125,126]==nCs).all(), \
+        f'output channel is 125th of 127'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,126,0,0))
+assert ([125,126,127]==nCs).all(), \
+        f'output channel is 126th of 127'
+nCs = getNeighborChannels(numChannels, sfDepth, (0,127,0,0))
+assert ([126,127,0]==nCs).all(), \
+        f'output channel is 127th of 127'
 

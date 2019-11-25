@@ -72,12 +72,11 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
             f'spatial filter width too large for feature map width\
             a pixel can be in both LEFT&RIGHT or TOP&BOTTOM'
 
-    """
-    print('INPUTS')
-    print(f'fmWidth {fmWidth}, spatialFilterWidth {spatialFilterWidth}')
-    print(f'p_index {p_index}')
-    print(f'borderSize = int_div(spatialFilterWidth,2)=> {borderSize}')
-    """
+    if(False):
+        print('INPUTS')
+        print(f'fmWidth {fmWidth}, spatialFilterWidth {spatialFilterWidth}')
+        print(f'p_index {p_index}')
+        print(f'borderSize = int_div(spatialFilterWidth,2)=> {borderSize}')
 
     #p_index = (Batch Size, # channels, Height, Width)
     # columns <==>  width
@@ -99,3 +98,31 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
     else:         rowLims = [rowIndx-borderSize,rowIndx+borderSize]
 
     return rowLims, colLims
+
+# CoL uses channels around channel of interest.
+# Ex) if numChannels=5 in the layer, current output channel p_index[1]=3,
+#       and spatialFilterDepth = 3 ---> output = channels 2,3,4
+# Ex) if numChannels=5 in the layer, current output channel p_index[1]=0,
+ #       and spatialFilterDepth = 3 ---> output = channels 4,0,1 (wraps around)
+def getNeighborChannels(numChannels, spatialFilterDepth, p_index):
+    ds = np.floor_divide(spatialFilterDepth,2) # borderSize for depth
+    outChannel = p_index[1]
+
+    assert spatialFilterDepth<=numChannels, \
+            f'depth of spatial filter {spatialFilterDepth} is greater\
+            than number of channels {numChannels}'
+    firstChan = outChannel-ds
+    lastChan  = outChannel+ds
+    neighChannels = np.arange(firstChan,lastChan+1,1)
+    #print(f'current chan: {outChannel}\nNeighbChan: {neighChannels}')
+
+    if( firstChan < 0 ):
+        for i in np.arange(np.absolute(firstChan)):
+            neighChannels[i] += numChannels
+
+    elif( lastChan > (numChannels-1) ): #bc numChannels>spatialFilterDepth elif
+        indexFirstChanAbove = spatialFilterDepth - (lastChan - (numChannels-1))
+        for i in np.arange(indexFirstChanAbove, spatialFilterDepth):
+            neighChannels[i] -= numChannels #shift back to beggining channels
+
+    return neighChannels
