@@ -3,28 +3,45 @@ import time
 import numpy as np
 
 chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', np.int16)])
-#indc is list of tuples
-#Input:  list of tuple indeces of dimension N-1, range of values for
-#  the new (first) higher dimension
-#Output: list of tuple indeces of dimension N, with every combination
-#  lower dimensional indeces and value in extraDimRange
-def createHigherDimInd(extraDimRange, indc):
-    assert len(extraDimRange)>0, 'empty extra dim provided'
-    assert len(indc)>0, 'empty set of indeces provided'
+# Takes feature map coordinates of p's neighbors (defined by the spatial
+#  filter tensor), and outputs them to p's local coordinates (for
+#  indexing into hxwxd spatial filter tensor).
+# input:
+#   fmNeighbors: 2D coordinates in fmap coordinates =>(pRow, pCol) in (0-fmWidth-1,0-fmWidth-1):
+# output:
+#   list of these fmNeighbors in their respective locations in the 3D sptial fileter
+def fm2sf(fmNeighbors, sfWidth, p):
 
-    """
-    print(extraDimRange)
-    for ind in indc:
-        print(ind)
-    """
+    borderSize      = np.floor_divide(sfWidth,2)
+    pRow,pCol       = p[0], p[1]
+    sfIndxs         = []
 
-    indeces = []
-    for c in extraDimRange:
-        for tup in indc:
-            newInd = (c,) + tup
-            indeces.append(newInd)
-    return indeces
-
+    for q in fmNeighbors:
+        sfRow = np.absolute(pRow-q[0]-borderSize)
+        sfCol = np.absolute(pCol-q[1]-borderSize)
+        sfIndxs.append((sfRow,sfCol))
+    return sfIndxs
+"""
+    qRows = np.arange(rowLims[0],rowLims[1]+1)
+    qCols = np.arange(colLims[0],colLims[1]+1)
+    print(f'rows:    {qRows}')
+    print(f'cols:    {qCols}')
+    for qRow in qRows:
+        for qCol in qCols:
+            localRow = np.absolute(pRow-qRow-borderSize)
+            localCol = np.absolute(pCol-qCol-borderSize)
+            localNeighbors.append((localRow,localCol))
+    return localNeighbors
+"""
+def lims2Coord(rowLims,colLims):
+    coords = []
+    for row in np.arange(rowLims[0], rowLims[1]+1):
+        for col in np.arange(colLims[0], colLims[1]+1):
+            coords.append((row,col))
+    return coords
+def localNeighb2TensorMask(localNeighbors, sfDims):
+    sfMask = torch.new_full((3,3,3), 0, dtype=torch.uint8, requires_grad=False)
+    print(sfMask)
 
 def getNeighborhoodIndeces(fmWidth, numChannels, sfDims, p):
 
@@ -57,13 +74,12 @@ def getNeighborhoodIndeces(fmWidth, numChannels, sfDims, p):
 
     return spatialWieghtIndxNeighbors, neighbors
 
-def borderLocPixel(fmWidth, borderSize, p_index):
-    #LEFT, RIGHT, TOP, BOTTOM, NONE
+def borderLocPixel(fmWidth, borderSize, twoDimIndex):
+    #output: LEFT, RIGHT, TOP, BOTTOM booleans
 
-    #p_index = (Batch Size, # channels, Height, Width)
     # columns <==>  width
     # rows    <==>  height
-    rowIndx, colIndx = p_index[2], p_index[3]
+    rowIndx, colIndx = twoDimIndex[0], twoDimIndex[1]
     assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
     assert(0 <= colIndx <= fmWidth-1)
 
@@ -88,17 +104,20 @@ def borderLocPixel(fmWidth, borderSize, p_index):
 
     return [LEFT,RIGHT,TOP,BOTTOM]
 
-def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
+def inChannelNeighbors(fmWidth, spatialFilterWidth, twoDimIndex):
+    # columns <==>  width
+    # rows    <==>  height
+    rowIndx, colIndx = twoDimIndex[0], twoDimIndex[1]
+    assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
+    assert(0 <= colIndx <= fmWidth-1)
+
     # assuming square feature map Height = Width = fmWidth
     # assuming stride = 1
     # assuming fmWidth > spatialFilterWidth
     assert fmWidth>spatialFilterWidth, \
             f'spat_filt_width {spatialFilterWidth} >= ftre_map_width {fmWidth}'
-    assert len(p_index)==4, \
-            f'index must be 4 dimensional: (Batch Size, # Channels, \
-            Height, Width)'
-    assert all(p_index[i]>=0 for i in range(len(p_index))), \
-            f'negative coordinates in index: {p_index}'
+    assert (0<=rowIndx<=(fmWidth-1)) and (0<=colIndx<=(fmWidth-1)), \
+            f'negative coordinates in index: ({rowIndx}, {colIndx})'
     borderSize = np.floor_divide(spatialFilterWidth,2)
     assert 2*borderSize<fmWidth, \
             f'spatial filter width too large for feature map width\
@@ -110,13 +129,9 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
         print(f'p_index {p_index}')
         print(f'borderSize = int_div(spatialFilterWidth,2)=> {borderSize}')
 
-    #p_index = (Batch Size, # channels, Height, Width)
     # columns <==>  width
     # rows    <==>  height
-    rowIndx, colIndx = p_index[2], p_index[3]
-    assert(0 <= rowIndx <= fmWidth-1) #index cannot be outside of fm
-    assert(0 <= colIndx <= fmWidth-1)
-    [LEFT,RIGHT,TOP,BOTTOM] = borderLocPixel(fmWidth, borderSize, p_index)
+    [LEFT,RIGHT,TOP,BOTTOM] = borderLocPixel(fmWidth, borderSize, (rowIndx,colIndx))
 
     #We now know if pixel p is on the border, and if so, which part. Use this
     # to construct limits of the row/cols of p's 2D neighborhood
@@ -129,16 +144,15 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, p_index):
     elif(BOTTOM): rowLims = [rowIndx-borderSize, fmWidth-1]
     else:         rowLims = [rowIndx-borderSize,rowIndx+borderSize]
 
-    return rowLims, colLims
+    return rowLims, colLims # only begin/end index. Must create array to iterate over
 
 # CoL uses channels around channel of interest.
 # Ex) if numChannels=5 in the layer, current output channel p_index[1]=3,
 #       and spatialFilterDepth = 3 ---> output = channels 2,3,4
 # Ex) if numChannels=5 in the layer, current output channel p_index[1]=0,
  #       and spatialFilterDepth = 3 ---> output = channels 4,0,1 (wraps around)
-def neighborChannels(numChannels, spatialFilterDepth, p_index):
-    ds = np.floor_divide(spatialFilterDepth,2) # borderSize for depth
-    outChannel = p_index[1]
+def neighborChannels(numChannels, spatialFilterDepth, outChannel):
+    ds = np.floor_divide(spatialFilterDepth,2) #depthSize =~borderSize for depth
 
     assert spatialFilterDepth<=numChannels, \
             f'depth of spatial filter {spatialFilterDepth} is greater\
