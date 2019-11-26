@@ -171,20 +171,6 @@ assert ([126,127,0]==nCs).all(), \
         f'output channel is 127th of 127'
 
 
-"""
-#getNeighborhoodIndeces
-fmWidth,numChannels,sfDims = 8,128,(3,3,3) #Height, Width, Depth
-chan = 1
-wNieghbors, nieghbors = getNeighborhoodIndeces(fmWidth, numChannels, sfDims, (0,chan,0,0))
-print(wNieghbors)
-print(nieghbors)
-chan = 1
-#print(getNeighborhoodIndeces(fmWidth, numChannels, sfDims, (0,chan,0,0)))
-"""
-
-
-#TODO: get only lefts, rights, et... Then test localNeighbors with this...
-
 fmWidth,numChannels,sfDims = 8,5,(3,3,3) #Height, Width, Depth
 borderSize = np.floor_divide(3,2)
 ls,rs,ts,bs,mdl = genBorderIndeces(fmWidth, borderSize)
@@ -315,3 +301,16 @@ for (fmWidth, sfWidth, test_ps) in a:
                 \n\tShould be: {test_ps[i][1]}\
                 \n\tOutput is: {sfNeighborsIndxs}\n'
 
+
+
+#apply filter: OC[p] = sum over q in N(p): W[q]*L[quant(p),quant(q)]*IC[q]
+t = torch.rand(3,3)
+print(t.size()[0])
+#(height,width) = t.size
+numBins = 5
+bins = np.arange(0,1,1/numBins)
+print(bins)
+quant = np.digitize(t,bins) -1
+print(t)
+print(quant)
+print(type(quant))

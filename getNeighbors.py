@@ -3,6 +3,33 @@ import time
 import numpy as np
 
 chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', np.int16)])
+
+
+def CoL(inputTensor, W, L):
+
+    #quantize inputTensor values
+    #each value in this tensor is now the index of that corresponding pixel
+    # into L
+    #SPEEDUP: use native pytorch quantization technique, or build own
+    bins = np.arange(0,1,1/numBins)
+    inputTensor_quant = np.digitize(t,bins) - 1
+
+    (numBatches,numChannels,height,width) = inputTensor.size()
+
+    #SPEEDUP OPTIONS: broadcasting, parrallelizing, etc
+    for b in range(numBatches):
+        for c in range(numChannels):
+            for row in range(height):
+                for col in range(width):
+                    OC[b,c,row,col] = applyFilter(inputTensor,W,L,(b,c,row,col))
+
+#apply filter: OC[p] = sum over q in N(p): W[q]*L[quant(p),quant(q)]*IC[q]
+def applyFilter(IC,W,L,p):
+    print("Apply Filter not implemented")
+
+
+
+
 # Takes feature map coordinates of p's neighbors (defined by the spatial
 #  filter tensor), and outputs them to p's local coordinates (for
 #  indexing into hxwxd spatial filter tensor).
@@ -21,18 +48,7 @@ def fm2sf(fmNeighbors, sfWidth, p):
         sfCol = np.absolute(pCol-q[1]-borderSize)
         sfIndxs.append((sfRow,sfCol))
     return sfIndxs
-"""
-    qRows = np.arange(rowLims[0],rowLims[1]+1)
-    qCols = np.arange(colLims[0],colLims[1]+1)
-    print(f'rows:    {qRows}')
-    print(f'cols:    {qCols}')
-    for qRow in qRows:
-        for qCol in qCols:
-            localRow = np.absolute(pRow-qRow-borderSize)
-            localCol = np.absolute(pCol-qCol-borderSize)
-            localNeighbors.append((localRow,localCol))
-    return localNeighbors
-"""
+
 def lims2Coord(rowLims,colLims):
     coords = []
     for row in np.arange(rowLims[0], rowLims[1]+1):
@@ -42,38 +58,9 @@ def lims2Coord(rowLims,colLims):
 def localNeighb2TensorMask(localNeighbors, sfDims):
     sfMask = torch.new_full((3,3,3), 0, dtype=torch.uint8, requires_grad=False)
     print(sfMask)
-
-def getNeighborhoodIndeces(fmWidth, numChannels, sfDims, p):
-
-    sfWidth, sfDepth = sfDims[1],sfDims[2] #Height, Width, Depth
-    bS = np.floor_divide(sfWidth,2)
-    pChan,pRow,pCol = p[1], p[2],p[3]
-    rows, cols = inChannelNeighbors(fmWidth, sfWidth, p)
-    nC         = neighborChannels(numChannels, sfDepth, p)
-
-    print(f'chan,(row,col): {p[1]}, ({p[2]},{p[3]})')
-    print(f'rowsLims: {rows}')
-    print(f'colLims:  {cols}')
-    print(f'Channels: {nC}')
-    #create 3D indeces
-    #TO DO:
-    #predefine array to make faster: compare this to simple array append
-    #map this onto 3D tensor?
-    neighbors = np.zeros(len(rows)*len(cols)*len(nC),dtype=chan_row_col_dtype)#('int16,int16,int16'))
-    spatialWieghtIndxNeighbors=np.zeros(len(rows)*len(cols)*len(nC),dtype=chan_row_col_dtype)
-    neighbors.fill(np.nan) #will crash in indexing if we dont fill all of them
-    spatialWieghtIndxNeighbors.fill(np.nan) #will crash in indexing if we dont fill all of them
-
-    i = 0
-    for indxChan, chan in enumerate(nC):
-        for row in rows:
-            for col in cols:
-                neighbors[i] = (chan,row,col) #this is likely cast to dtype^ Access unclear
-                spatialWieghtIndxNeighbors[i] = (indxChan,pRow-row-bS,pCol-col-bS)#TODO
-                i+=1
-
-    return spatialWieghtIndxNeighbors, neighbors
-
+    #loop over each index in local neighbors and set its corresponding
+    # index in the 0's tensor to 1
+    #TODO
 def borderLocPixel(fmWidth, borderSize, twoDimIndex):
     #output: LEFT, RIGHT, TOP, BOTTOM booleans
 
