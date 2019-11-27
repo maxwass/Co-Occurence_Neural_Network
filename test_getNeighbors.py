@@ -314,3 +314,7 @@ quant = np.digitize(t,bins) -1
 print(t)
 print(quant)
 print(type(quant))
+
+filteredP = torch.zeros(1, dtype=torch.float64)
+print("1x1 tensor")
+print(filteredP.item())

@@ -6,47 +6,100 @@ chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', 
 
 
 def CoL(inputTensor, W, L):
+    (numBatches, numChannels, fmHeight, fmWidth) = inputTensor.size()
+    assert len(IC.size())==4, f'Input Tensor not 4D {IC.size()}'
+    assert len(p)==4, f'expecting coordinate p {p_4D} to be 4D'
+    assert fmHeight==fmWidth, f'feature map not square: {IC.size()}'
+
 
     #quantize inputTensor values
     #each value in this tensor is now the index of that corresponding pixel
     # into L
-    #SPEEDUP: use native pytorch quantization technique, or build own
+    #SPEEDUP: use native pytorch quantization technique (github: torch
+    # searchsorted), or build own
     bins = np.arange(0,1,1/numBins)
-    inputTensor_quant = np.digitize(t,bins) - 1
+    inputTensorBinned = np.digitize(t,bins) - 1
 
     (numBatches,numChannels,height,width) = inputTensor.size()
 
+    #NEED TO BE TRACKED??
+    OT = torch.empty_like(inputTensor)
     #SPEEDUP OPTIONS: broadcasting, parrallelizing, etc
     for b in range(numBatches):
         for c in range(numChannels):
             for row in range(height):
                 for col in range(width):
-                    OC[b,c,row,col] = applyFilter(inputTensor,W,L,(b,c,row,col))
-
-#apply filter: OC[p] = sum over q in N(p): W[q]*L[quant(p),quant(q)]*IC[q]
-def applyFilter(IC,W,L,p):
-    print("Apply Filter not implemented")
+                    OT[b,c,row,col] = applyFilter(inputTensor,inputTensorBinned,W,L,(b,c,row,col))
 
 
+    return OT
+#apply filter: IT[p] = sum over q in N(p): W[q]*L[quant(p),quant(q)]*IC[q]
+# IT: Input Tensor: torch tensor (Batch,Channels,Height,Width)
+# IT_binned: Numpy ndarray/pytorch tensor with binned activation values.
+#             Same size as IT.
+# W: spatial filter. pytorch tensor with tracked gradients.
+# L: Deep Cooccurence matrix. pytorch tensor with tracked gradients.
+# p_4d: 4d index of current point of interest.
+def applyFilter(IT,IT_binned,W,L,p_4D):
+    (_,numChannels,fmWidth,_)  = IC.size()
+    (sfHeight,sfWidth,sfDepth) = W.size()
+    (LHeight,LWidth)           = L.size()
+    b, c, pRow, pCol           = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
 
+    fmRowLims, fmColLims = inChannelNeighbors(fmWidth, sfWidth, (pRow,pCol))
+    fmNeighbors          = lims2Coord(fmRowLims,fmColLims)
+    sfNeighbors          = fm2sf(fmNeighbors, sfWidth, (pRow,pCol))
+    neighborChannels     = neighborChannels(numChannels, sfDepth, c)
+
+    assert len(fmNeighbors)==len(sfNeighbors),\
+            f'fmNeighbors and sfNeighbors should contain the same \
+            neighbors in transformed coordinates'
+
+
+    #SHOULD THIS BE A PYTORCH VARIABLE FOR TRACKING?
+    filteredP = torch.zeros(1, dtype=torch.float64)
+
+    #neighborChannels is a list of channels from which to pull p's neighbors from.
+    # The values in this list are indeces of the corresponding channels in order of
+    #  their use (from back to front).
+    #When indexing into the spatial filter W, we only care about the relative location
+    #  to p, so wChan is the depth index into W. We start at the back of W and move forward.
+    #sfNeighbors is a transformed version of fmNeighbors and maintains the same order of indx's
+    for wChan, channelIndex in enumerate(neighborChannels):
+        for i in range(len(fmNeighbors)):
+            q_fm, q_sf = fmNeighbors[i], sfNeighbors[i]
+            #3D index. Ensure this indexing is correct. When multiple W's
+            # used, ensure to use correct one
+            indexW    =  q_sf + (wChan,)
+            # ENSURE THAT THIS IS OK FOR GRADIENT TRACKING
+            # convert these operations to pytorch operations
+            w_q  = W[indexW]
+            l_pq = L[IC_binned[p]][IC_binned[q_fm]] #check this type
+            I_q  = IC[q_fm]
+
+            filteredP.add_(torch.mul(torch.mul(w_q,l_pq), I_q)) #option 1
+            torch.addcmul(filteredP, value=I_q, w_q, l_pq, out=filteredP) #otions 2
+            filteredP += W[indexW]*L[IC_binned[p]][IC_binned[q_fm]]*IC[q_fm] #option 3
+    return filteredP
 
 # Takes feature map coordinates of p's neighbors (defined by the spatial
 #  filter tensor), and outputs them to p's local coordinates (for
 #  indexing into hxwxd spatial filter tensor).
 # input:
-#   fmNeighbors: 2D coordinates in fmap coordinates =>(pRow, pCol) in (0-fmWidth-1,0-fmWidth-1):
+#   fmIndxs: 2D coordinates in fmap coordinates =>(pRow, pCol) in (0-fmWidth-1,0-fmWidth-1):
 # output:
 #   list of these fmNeighbors in their respective locations in the 3D sptial fileter
-def fm2sf(fmNeighbors, sfWidth, p):
-
+def fm2sf(fmIndxs, sfWidth, pRowCol):
+    #Invariant: fmIndxs and sdIndxs have SAME order: ith element of sfIndxs is a
+    # transformed coordinate of the ith element of fmIndxsd
     borderSize      = np.floor_divide(sfWidth,2)
-    pRow,pCol       = p[0], p[1]
+    pRow,pCol       = pRowCol[0], pRowCol[1]
     sfIndxs         = []
 
-    for q in fmNeighbors:
+    for q in fmIndxs:
         sfRow = np.absolute(pRow-q[0]-borderSize)
         sfCol = np.absolute(pCol-q[1]-borderSize)
-        sfIndxs.append((sfRow,sfCol))
+        sfIndxs.append((sfRow,sfCol)) #appends to END of list - maintaining order
     return sfIndxs
 
 def lims2Coord(rowLims,colLims):
@@ -91,10 +144,10 @@ def borderLocPixel(fmWidth, borderSize, twoDimIndex):
 
     return [LEFT,RIGHT,TOP,BOTTOM]
 
-def inChannelNeighbors(fmWidth, spatialFilterWidth, twoDimIndex):
+def inChannelNeighbors(fmWidth, spatialFilterWidth, pRowCol):
     # columns <==>  width
     # rows    <==>  height
-    rowIndx, colIndx = twoDimIndex[0], twoDimIndex[1]
+    rowIndx, colIndx = pRowCol[0], pRowCol[1]
     assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
     assert(0 <= colIndx <= fmWidth-1)
 
