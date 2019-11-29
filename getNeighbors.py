@@ -5,11 +5,11 @@ import numpy as np
 chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', np.int16)])
 
 
-def CoL(inputTensor, W, L):
+def CoL(IT, W, L):
     (numBatches, numChannels, fmHeight, fmWidth) = inputTensor.size()
-    assert len(IC.size())==4, f'Input Tensor not 4D {IC.size()}'
+    assert len(IT.size())==4, f'Input Tensor not 4D {IT.size()}'
     assert len(p)==4, f'expecting coordinate p {p_4D} to be 4D'
-    assert fmHeight==fmWidth, f'feature map not square: {IC.size()}'
+    assert fmHeight==fmWidth, f'feature map not square: {IT.size()}'
 
 
     #quantize inputTensor values
@@ -18,7 +18,7 @@ def CoL(inputTensor, W, L):
     #SPEEDUP: use native pytorch quantization technique (github: torch
     # searchsorted), or build own
     bins = np.arange(0,1,1/numBins)
-    inputTensorBinned = np.digitize(t,bins) - 1
+    inputTensorBinned = np.digitize(inputTensor,bins) - 1
 
     (numBatches,numChannels,height,width) = inputTensor.size()
 
@@ -41,22 +41,19 @@ def CoL(inputTensor, W, L):
 # L: Deep Cooccurence matrix. pytorch tensor with tracked gradients.
 # p_4d: 4d index of current point of interest.
 def applyFilter(IT,IT_binned,W,L,p_4D):
-    (_,numChannels,fmWidth,_)  = IC.size()
+    (_,numChannels,fmWidth,_)  = IT.size()
     (sfHeight,sfWidth,sfDepth) = W.size()
-    (LHeight,LWidth)           = L.size()
-    b, c, pRow, pCol           = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
+    b, pChan, pRow, pCol       = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
 
     fmRowLims, fmColLims = inChannelNeighbors(fmWidth, sfWidth, (pRow,pCol))
     fmNeighbors          = lims2Coord(fmRowLims,fmColLims)
     sfNeighbors          = fm2sf(fmNeighbors, sfWidth, (pRow,pCol))
-    neighborChannels     = neighborChannels(numChannels, sfDepth, c)
+    nChannels            = neighborChannels(numChannels, sfDepth, pChan)
 
     assert len(fmNeighbors)==len(sfNeighbors),\
             f'fmNeighbors and sfNeighbors should contain the same \
             neighbors in transformed coordinates'
 
-
-    #SHOULD THIS BE A PYTORCH VARIABLE FOR TRACKING?
     filteredP = torch.zeros(1, dtype=torch.float64)
 
     #neighborChannels is a list of channels from which to pull p's neighbors from.
@@ -65,21 +62,38 @@ def applyFilter(IT,IT_binned,W,L,p_4D):
     #When indexing into the spatial filter W, we only care about the relative location
     #  to p, so wChan is the depth index into W. We start at the back of W and move forward.
     #sfNeighbors is a transformed version of fmNeighbors and maintains the same order of indx's
-    for wChan, channelIndex in enumerate(neighborChannels):
+
+    #fill a tensor of same size as spatial filter with:
+    # sf_cons - spatial coefficients used at their respective
+    #           locations. 0's if unused.
+    # ne_cons - neighbors of the current pixel. 0's if outside of
+    #           kernel (if pixel is on a boundary)
+    DEBUG = True
+    if(DEBUG):
+        sf_cons        = torch.zeros_like(W,dtype=torch.float64)
+        neighbors_cons = torch.zeros_like(W,dtype=torch.float64)
+
+    #neighbor channels nChannels are in order from first to last
+    for chanIndexSf, chanIndexFm in enumerate(nChannels):
         for i in range(len(fmNeighbors)):
             q_fm, q_sf = fmNeighbors[i], sfNeighbors[i]
-            #3D index. Ensure this indexing is correct. When multiple W's
-            # used, ensure to use correct one
-            indexW    =  q_sf + (wChan,)
-            # ENSURE THAT THIS IS OK FOR GRADIENT TRACKING
-            # convert these operations to pytorch operations
-            w_q  = W[indexW]
-            l_pq = L[IC_binned[p]][IC_binned[q_fm]] #check this type
-            I_q  = IC[q_fm]
 
-            filteredP.add_(torch.mul(torch.mul(w_q,l_pq), I_q)) #option 1
-            torch.addcmul(filteredP, value=I_q, w_q, l_pq, out=filteredP) #otions 2
-            filteredP += W[indexW]*L[IC_binned[p]][IC_binned[q_fm]]*IC[q_fm] #option 3
+            #3D index. Ensure this indexing is correct. W is 3D
+            q_sf = (chanIndexSf,)   + q_sf   #3D
+            q_fm = (b,chanIndexFm,) + q_fm   #4D
+
+            w_q  = W[q_sf]
+            l_pq = L[IT_binned[p_4D]][IT_binned[q_fm]] #check this type
+            I_q  = IT[q_fm]
+            filteredP += w_q*l_pq*I_q
+            if(DEBUG):
+                neighbors_cons[q_sf] = I_q
+                sf_cons[q_sf]        = w_q
+
+    input(f'Neighbors around (channel,row,col) = (({pChan},{pRow},{pCol})')
+    print(f'IT[p] = {IT[p_4D]}')
+    print(f'Neighbors Used: \n{neighbors_cons}')
+    print(f'W weights used: \n{sf_cons}')
     return filteredP
 
 # Takes feature map coordinates of p's neighbors (defined by the spatial

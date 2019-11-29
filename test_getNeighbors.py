@@ -315,6 +315,137 @@ print(t)
 print(quant)
 print(type(quant))
 
-filteredP = torch.zeros(1, dtype=torch.float64)
-print("1x1 tensor")
-print(filteredP.item())
+
+def profilingPytorchGradients(numTrials):
+
+    fmax_value = np.floor(np.finfo(np.float64).max)
+    imax_value = np.iinfo(np.uint64).max
+    loops = 1000000
+    if(False):
+        print(f'{loops} loops. add vs += vs add_')
+
+        #torch.add
+        adding   = np.zeros(numTrials)
+        backward = np.zeros(numTrials)
+        for t in range(len(adding)):
+            param = torch.ones(1,dtype=torch.float64, requires_grad=True)
+            value = torch.ones(1, dtype=torch.float64)
+            t0 = time.time()
+            for i in range(loops):
+                value=torch.add(value,param)
+            t1 = time.time()
+            value.backward()
+            t2 = time.time()
+            adding[t]   = t1-t0
+            backward[t] = t2-t1
+            print(f'iter {t}, time add:{adding[t]}, back:{backward[t]}')
+            #print(f'\tparam.grad: {param.grad.item()}')
+        print(f'Ave Time/Stdv torch.add:  {np.mean(adding)}, {np.std(adding)}')
+        print(f'Ave Time/Stdv backward:   {np.mean(backward)}, {np.std(backward)}\n\n')
+
+        #torch.add_
+        adding   = np.zeros(numTrials)
+        backward = np.zeros(numTrials)
+        for t in range(len(adding)):
+            param = torch.ones(1,dtype=torch.float64, requires_grad=True)
+            value = torch.ones(1, dtype=torch.float64)
+            t0 = time.time()
+            for i in range(loops):
+                value.add_(param)
+            t1 = time.time()
+            value.backward()
+            t2 = time.time()
+            adding[t]   = t1-t0
+            backward[t] = t2-t1
+            print(f'iter {t}, time add:{adding[t]}, back:{backward[t]}')
+            #print(f'\tparam.grad: {param.grad.item()}')
+        print(f'Ave Time/Stdv add_:      {np.mean(adding)}, {np.std(adding)}')
+        print(f'Ave Time/Stdv backward:  {np.mean(backward)}, {np.std(backward)}\n\n')
+
+        #+=
+        adding   = np.zeros(numTrials)
+        backward = np.zeros(numTrials)
+        for t in range(len(adding)):
+            param = torch.ones(1,dtype=torch.float64, requires_grad=True)
+            value = torch.ones(1, dtype=torch.float64)
+            t0 = time.time()
+            for i in range(loops):
+                value+=param
+            t1 = time.time()
+            value.backward()
+            t2 = time.time()
+            adding[t]   = t1-t0
+            backward[t] = t2-t1
+            print(f'iter {t}, time add:{adding[t]}, back:{backward[t]}')
+        print(f'Ave Time/Stdv +=:        {np.mean(adding)}, {np.std(adding)}')
+        print(f'Ave Time/Stdv backward:  {np.mean(backward)}, {np.std(backward)}\n\n')
+
+    if(True): #testing multiply and multiple operations
+        print(f'{loops} loops. mul,add vs *,+=')
+
+        #torch.mul
+        adding   = np.zeros(numTrials)
+        backward = np.zeros(numTrials)
+        for t in range(len(adding)):
+            param = torch.ones(1,dtype=torch.float64, requires_grad=True)*0.5
+            param1= torch.ones(1,dtype=torch.float64, requires_grad=True)*2
+            value = torch.ones(1, dtype=torch.float64)
+            t0 = time.time()
+            for i in range(loops):
+                value=torch.add(value,torch.mul(torch.mul(param,param1),1))
+            t1 = time.time()
+            value.backward()
+            t2 = time.time()
+            adding[t]   = t1-t0
+            backward[t] = t2-t1
+            print(f'iter {t}, time ops:{adding[t]}, back:{backward[t]}')
+            #print(f'\tparam.grad: {param.grad.item()}')
+        print(f'Ave Time/Stdv torch ops: {np.mean(adding)}, {np.std(adding)}')
+        print(f'Ave Time/Stdv backward:  {np.mean(backward)}, {np.std(backward)}\n\n')
+
+        #+=,*
+        adding   = np.zeros(numTrials)
+        backward = np.zeros(numTrials)
+        for t in range(len(adding)):
+            param = torch.ones(1,dtype=torch.float64, requires_grad=True)*0.5
+            param1= torch.ones(1,dtype=torch.float64, requires_grad=True)*2
+            value = torch.ones(1, dtype=torch.float64)
+            t0 = time.time()
+            for i in range(loops):
+                value+= param*param1*1
+            t1 = time.time()
+            value.backward()
+            t2 = time.time()
+            adding[t]   = t1-t0
+            backward[t] = t2-t1
+            print(f'iter {t}, time ops:{adding[t]}, back:{backward[t]}')
+            #print(f'\tparam.grad: {param.grad.item()}')
+        print(f'Ave Time/Stdv torch ops: {np.mean(adding)}, {np.std(adding)}')
+        print(f'Ave Time/Stdv backward:  {np.mean(backward)}, {np.std(backward)}\n\n')
+
+#profilingPytorchGradients(3)
+
+#testing CoL logic:
+
+fmWidth,numChannels = 5,3
+IT = torch.rand((1,3,fmWidth,fmWidth), dtype=torch.float64)
+W = torch.tensor( [ [[1,2,3],[1,2,3],[1,2,3]],\
+                    [[4,5,6],[4,5,6],[4,5,6]],\
+                    [[7,8,9],[7,8,9],[7,8,9]]], dtype=torch.float64 )
+L = torch.ones((5,5), dtype=torch.float64)
+bins = np.arange(0,1,1/numBins)
+IT_Binned = np.digitize(IT,bins) - 1
+
+#print(f'First channel of IT')
+#print(IT[:,0,:,:])
+#print(f'First channel of IT_Binned')
+#print(IT_Binned[:,0,:,:])
+print(f'Spatial Filter: \n{W}')
+print(f'Input Tensor: \n{IT}')
+print(f'Deep CoOccur: \n{L}')
+
+for chan in range(numChannels):
+    for row in range(fmWidth):
+        for col in range(fmWidth):
+            filteredP = applyFilter(IT,IT_Binned,W,L,(0,chan,row,col))
+
