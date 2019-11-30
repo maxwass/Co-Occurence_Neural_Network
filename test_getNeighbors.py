@@ -22,11 +22,23 @@ def genBorderIndeces(fmWidth, borderSize):
 
     return ls,rs,ts,bs,mdl
 
+def makeDisjoint(ls,rs,ts,bs,mdl):
+    left_top  = set(ls)&set(ts)
+    left_bot  = set(ls)&set(bs)
+    right_top = set(rs)&set(ts)
+    right_bot = set(rs)&set(bs)
+
+    ls_only = set(ls)-left_top-left_bot
+    rs_only = set(rs)-right_top-right_bot
+    ts_only = set(ts)-left_top-right_top
+    bs_only = set(bs)-left_bot-right_bot
+
+    return left_top, left_bot, right_top, right_bot, ls_only, rs_only, ts_only, bs_only
 
 fmWidth, sfWidth, sfDepth  = 8,5,3
 borderSize = np.floor_divide(sfWidth,2)
 
-ls,rs,ts,bs,mdl= genBorderIndeces(fmWidth, borderSize)
+ls,rs,ts,bs,mdl = genBorderIndeces(fmWidth, borderSize)
 
 ## borderLocPixel
 left,right,top,bot = 0,1,2,3
@@ -174,17 +186,7 @@ assert ([126,127,0]==nCs).all(), \
 fmWidth,numChannels,sfDims = 8,5,(3,3,3) #Height, Width, Depth
 borderSize = np.floor_divide(3,2)
 ls,rs,ts,bs,mdl = genBorderIndeces(fmWidth, borderSize)
-
-#corners
-left_top  = set(ls)&set(ts)
-left_bot  = set(ls)&set(bs)
-right_top = set(rs)&set(ts)
-right_bot = set(rs)&set(bs)
-
-ls_only = set(ls)-left_top-left_bot
-rs_only = set(rs)-right_top-right_bot
-ts_only = set(ts)-left_top-right_top
-bs_only = set(bs)-left_bot-right_bot
+lt, lb, rt, rt, l, r, t, b = makeDisjoint(ls,rs,ts,bs,mdl)
 
 # 3 cases:
 #(1) fmWidth=5, sfWidth=3
@@ -427,25 +429,326 @@ def profilingPytorchGradients(numTrials):
 
 #testing CoL logic:
 
-fmWidth,numChannels = 5,3
-IT = torch.rand((1,3,fmWidth,fmWidth), dtype=torch.float64)
-W = torch.tensor( [ [[1,2,3],[1,2,3],[1,2,3]],\
-                    [[4,5,6],[4,5,6],[4,5,6]],\
-                    [[7,8,9],[7,8,9],[7,8,9]]], dtype=torch.float64 )
-L = torch.ones((5,5), dtype=torch.float64)
-bins = np.arange(0,1,1/numBins)
+
+#Testing Apply filter:
+print("\n\n\n")
+#test 1: W,L all ones, IT constant per channel
+
+fmWidth,sfWidth,numChannels,k= 5,3,3,5
+borderSize = np.floor_divide(sfWidth,2)
+
+IT = torch.zeros((1,3,5,5), dtype=torch.float64)
+IT[:,0,:,:], IT[:,1,:,:], IT[:,2,:,:]  = 1.0, 2.0, 3.0
+W = torch.ones((3,3,3), requires_grad=True,dtype=torch.float64)
+L = torch.ones((k,k), requires_grad=True,dtype=torch.float64)
+bins = np.arange(.5,4.5,1)
 IT_Binned = np.digitize(IT,bins) - 1
 
-#print(f'First channel of IT')
-#print(IT[:,0,:,:])
-#print(f'First channel of IT_Binned')
-#print(IT_Binned[:,0,:,:])
 print(f'Spatial Filter: \n{W}')
 print(f'Input Tensor: \n{IT}')
 print(f'Deep CoOccur: \n{L}')
+print(f'Input Ten Bin:\n{IT_Binned}')
+ls,rs,ts,bs,mdl            = genBorderIndeces(fmWidth, borderSize)
+lt, lb, rt, rb, l, r, t, b = makeDisjoint(ls,rs,ts,bs,mdl)
 
-for chan in range(numChannels):
-    for row in range(fmWidth):
-        for col in range(fmWidth):
-            filteredP = applyFilter(IT,IT_Binned,W,L,(0,chan,row,col))
+#Only do 1st (middle) Channel atm
+
+#define derivs
+left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+left_deriv[1,:,:], left_deriv[2,:,:] = 2, 3
+left_deriv[:,:,0]=0.0
+
+right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+right_deriv[1,:,:], right_deriv[2,:,:] = 2,3
+right_deriv[:,:,2]=0.0
+
+top_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_deriv[1,:,:], top_deriv[2,:,:] = 2, 3
+top_deriv[:,0,:]=0.0
+
+bottom_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_deriv[1,:,:], bottom_deriv[2,:,:] = 2, 3
+bottom_deriv[:,2,:]=0.0
+
+L_side_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_side_deriv[1,0], L_side_deriv[1,1],  L_side_deriv[1,2] = 6*1,6*2,6*3
+
+
+top_left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_left_deriv[1,:,:], top_left_deriv[2,:,:] = 2, 3
+top_left_deriv[:,:,0], top_left_deriv[:,0,:] = 0.0, 0.0
+
+top_right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_right_deriv[1,:,:], top_right_deriv[2,:,:] = 2, 3
+top_right_deriv[:,:,2], top_right_deriv[:,0,:] = 0.0, 0.0
+
+bottom_left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_left_deriv[1,:,:], bottom_left_deriv[2,:,:] = 2, 3
+bottom_left_deriv[:,:,0], bottom_left_deriv[:,2,:] = 0.0, 0.0
+
+bottom_right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_right_deriv[1,:,:], bottom_right_deriv[2,:,:] = 2, 3
+bottom_right_deriv[:,2,:], bottom_right_deriv[:,:,2] = 0.0, 0.0
+
+L_corner_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_corner_deriv[1,0], L_corner_deriv[1,1],  L_corner_deriv[1,2] = 4*1,4*2,4*3
+
+
+mdl_deriv = torch.ones((3,3,3), dtype=torch.float64)
+mdl_deriv[1,:,:], mdl_deriv[2,:,:] = 2, 3
+
+L_mdl_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_mdl_deriv[1,0], L_mdl_deriv[1,1],  L_mdl_deriv[1,2] = 9*1,9*2,9*3
+
+chan = 2-1
+
+print(f'Testing W gradients:fmWidth: {fmWidth}, sfWidth: {sfWidth}')
+for p in l:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, left_deriv), \
+            f'gradient incorrect for left pixels {p}\nis:{W.grad}\nshould be\n{left_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for left pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in r:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, right_deriv), \
+            f'gradient incorrect for right pixels {p}\nis:{W.grad}\nshould be\n{right_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for right pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in t:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_deriv), \
+            f'gradient incorrect for top pixels {p}\nis:{W.grad}\nshould be\n{top_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for right pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in b:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_deriv), \
+            f'gradient incorrect for bottom pixels {p}\nis:{W.grad}\nshould be\n{bottom_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for bottom pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in lt:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_left_deriv), \
+            f'gradient incorrect for top_left pixels {p}\nis:{W.grad}\nshould be\n{top_left_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for top_left pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in lb:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_left_deriv), \
+            f'gradient incorrect for bottom_left pixels {p}\nis:{W.grad}\nshould be\n{bottom_left_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for bottom_left pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in rt:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_right_deriv), \
+            f'gradient incorrect for top_right pixels {p}\nis:{W.grad}\nshould be\n{top_right_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for top_right pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+
+for p in rb:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_right_deriv), \
+            f'gradient incorrect for bottom_right pixels {p}\nis:{W.grad}\nshould be\n{bottom_right_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for bottom_right pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in mdl:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, mdl_deriv), \
+            f'gradient incorrect for middle pixels {p}\nis:{W.grad}\nshould be\n{mdl_deriv}'
+    assert torch.allclose(L.grad, L_mdl_deriv), \
+            f'L gradient incorrect for middle pixels {p}\nis:{L.grad}\nshould be\n{L_mdl_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+#0th (first) channel
+chan=0
+#define derivs
+left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+left_deriv[2,:,:], left_deriv[0,:,:] = 2, 3
+left_deriv[:,:,0]=0.0
+
+right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+right_deriv[2,:,:], right_deriv[0,:,:] = 2,3
+right_deriv[:,:,2]=0.0
+
+top_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_deriv[2,:,:], top_deriv[0,:,:] = 2, 3
+top_deriv[:,0,:]=0.0
+
+bottom_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_deriv[2,:,:], bottom_deriv[0,:,:] = 2, 3
+bottom_deriv[:,2,:]=0.0
+
+L_side_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_side_deriv[0,0], L_side_deriv[0,1],  L_side_deriv[0,2] = 6*1,6*2,6*3
+
+
+top_left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_left_deriv[2,:,:], top_left_deriv[0,:,:] = 2, 3
+top_left_deriv[:,:,0], top_left_deriv[:,0,:] = 0.0, 0.0
+
+top_right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+top_right_deriv[2,:,:], top_right_deriv[0,:,:] = 2, 3
+top_right_deriv[:,:,2], top_right_deriv[:,0,:] = 0.0, 0.0
+
+bottom_left_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_left_deriv[2,:,:], bottom_left_deriv[0,:,:] = 2, 3
+bottom_left_deriv[:,:,0], bottom_left_deriv[:,2,:] = 0.0, 0.0
+
+bottom_right_deriv = torch.ones((3,3,3), dtype=torch.float64)
+bottom_right_deriv[2,:,:], bottom_right_deriv[0,:,:] = 2, 3
+bottom_right_deriv[:,2,:], bottom_right_deriv[:,:,2] = 0.0, 0.0
+
+L_corner_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_corner_deriv[0,0], L_corner_deriv[0,1],  L_corner_deriv[0,2] = 4*1,4*2,4*3
+
+
+mdl_deriv = torch.ones((3,3,3), dtype=torch.float64)
+mdl_deriv[2,:,:], mdl_deriv[0,:,:] = 2, 3
+
+L_mdl_deriv = torch.zeros((k,k), requires_grad=True,dtype=torch.float64)
+L_mdl_deriv[0,0], L_mdl_deriv[0,1],  L_mdl_deriv[0,2] = 9*1,9*2,9*3
+
+for p in l:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, left_deriv), \
+            f'gradient incorrect for left pixels {p}\nis:{W.grad}\nshould be\n{left_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for left pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in r:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, right_deriv), \
+            f'gradient incorrect for right pixels {p}\nis:{W.grad}\nshould be\n{right_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for right pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in t:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_deriv), \
+            f'gradient incorrect for top pixels {p}\nis:{W.grad}\nshould be\n{top_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for right pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in b:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_deriv), \
+            f'gradient incorrect for bottom pixels {p}\nis:{W.grad}\nshould be\n{bottom_deriv}'
+    assert torch.allclose(L.grad, L_side_deriv), \
+            f'L gradient incorrect for bottom pixels {p}\nis:{L.grad}\nshould be\n{L_side_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in lt:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_left_deriv), \
+            f'gradient incorrect for top_left pixels {p}\nis:{W.grad}\nshould be\n{top_left_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for top_left pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in lb:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_left_deriv), \
+            f'gradient incorrect for bottom_left pixels {p}\nis:{W.grad}\nshould be\n{bottom_left_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for bottom_left pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in rt:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, top_right_deriv), \
+            f'gradient incorrect for top_right pixels {p}\nis:{W.grad}\nshould be\n{top_right_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for top_right pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+
+for p in rb:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, bottom_right_deriv), \
+            f'gradient incorrect for bottom_right pixels {p}\nis:{W.grad}\nshould be\n{bottom_right_deriv}'
+    assert torch.allclose(L.grad, L_corner_deriv), \
+            f'L gradient incorrect for bottom_right pixels {p}\nis:{L.grad}\nshould be\n{L_corner_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
+
+for p in mdl:
+    p_4D = (0,chan,p[0],p[1])
+    filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D)
+    filteredP.backward()
+    assert torch.allclose(W.grad, mdl_deriv), \
+            f'gradient incorrect for middle pixels {p}\nis:{W.grad}\nshould be\n{mdl_deriv}'
+    assert torch.allclose(L.grad, L_mdl_deriv), \
+            f'L gradient incorrect for middle pixels {p}\nis:{L.grad}\nshould be\n{L_mdl_deriv}'
+    L.grad.data.zero_()
+    W.grad.data.zero_()
 

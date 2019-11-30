@@ -41,7 +41,7 @@ def CoL(IT, W, L):
 # L: Deep Cooccurence matrix. pytorch tensor with tracked gradients.
 # p_4d: 4d index of current point of interest.
 def applyFilter(IT,IT_binned,W,L,p_4D):
-    (_,numChannels,fmWidth,_)  = IT.size()
+    (numBatch,numChannels,fmHeight,fmWidth)  = IT.size()
     (sfHeight,sfWidth,sfDepth) = W.size()
     b, pChan, pRow, pCol       = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
 
@@ -72,7 +72,7 @@ def applyFilter(IT,IT_binned,W,L,p_4D):
     if(DEBUG):
         sf_cons        = torch.zeros_like(W,dtype=torch.float64)
         neighbors_cons = torch.zeros_like(W,dtype=torch.float64)
-
+        L_cons         = torch.zeros_like(W,dtype=torch.float64)
     #neighbor channels nChannels are in order from first to last
     for chanIndexSf, chanIndexFm in enumerate(nChannels):
         for i in range(len(fmNeighbors)):
@@ -83,17 +83,26 @@ def applyFilter(IT,IT_binned,W,L,p_4D):
             q_fm = (b,chanIndexFm,) + q_fm   #4D
 
             w_q  = W[q_sf]
+
             l_pq = L[IT_binned[p_4D]][IT_binned[q_fm]] #check this type
             I_q  = IT[q_fm]
+            #print(f'\nq_fm: {q_fm}, IT[q]= {I_q}')
+            #print(f'q_sf: {q_sf}, weight_q: {w_q}')
+            #input('...')
+            #print(f'IT values: ({IT[p_4D]}, {IT[q_fm]})')
+            #print(f'L indeces: ({IT_binned[p_4D]}, {IT_binned[q_fm]})')
             filteredP += w_q*l_pq*I_q
             if(DEBUG):
                 neighbors_cons[q_sf] = I_q
                 sf_cons[q_sf]        = w_q
+                L_cons[q_sf]         = l_pq
 
-    input(f'Neighbors around (channel,row,col) = (({pChan},{pRow},{pCol})')
-    print(f'IT[p] = {IT[p_4D]}')
-    print(f'Neighbors Used: \n{neighbors_cons}')
-    print(f'W weights used: \n{sf_cons}')
+    #input(f'Neighbors around (channel,row,col) = (({pChan},{pRow},{pCol})')
+    #print(f'IT[p] = {IT[p_4D]}')
+    #print(f'Neighbors Used: \n{neighbors_cons}')
+    #print(f'W weights used: \n{sf_cons}')
+    #print(f'L used: {L_cons}')
+    #input('...')
     return filteredP
 
 # Takes feature map coordinates of p's neighbors (defined by the spatial
@@ -162,8 +171,8 @@ def inChannelNeighbors(fmWidth, spatialFilterWidth, pRowCol):
     # columns <==>  width
     # rows    <==>  height
     rowIndx, colIndx = pRowCol[0], pRowCol[1]
-    assert(0 <= rowIndx <= fmWidth-1) #index cannout be outside of fm
-    assert(0 <= colIndx <= fmWidth-1)
+    assert(0 <= rowIndx <= fmWidth-1), f'fm row: {rowIndx} must be in [0,{fmWidth-1}]'
+    assert(0 <= colIndx <= fmWidth-1), f'fm row: {colIndx} must be in [0,{fmWidth-1}]'
 
     # assuming square feature map Height = Width = fmWidth
     # assuming stride = 1
