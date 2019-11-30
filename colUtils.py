@@ -2,108 +2,36 @@ import torch
 import time
 import numpy as np
 
-chan_row_col_dtype = np.dtype([('channel', np.int16), ('row', np.int16),('col', np.int16)])
+def genBorderIndeces(fmWidth, borderSize):
+    ls,rs,ts,bs,mdl=[],[],[],[],[]
+    for i in np.arange(fmWidth):
+        for j in range(borderSize):
+            l,r = (i,j), (i,fmWidth-1-j)
+            t,b = (j,i), (fmWidth-1-j,i)
+            ls.append(l)
+            rs.append(r)
+            ts.append(t)
+            bs.append(b)
 
+    for i in np.arange(borderSize,fmWidth-1-borderSize):
+        for j in np.arange(borderSize,fmWidth-1-borderSize):
+            m = (i,j)
+            mdl.append(m)
+    return ls,rs,ts,bs,mdl
 
-def CoL(IT, W, L):
-    (numBatches, numChannels, fmHeight, fmWidth) = inputTensor.size()
-    assert len(IT.size())==4, f'Input Tensor not 4D {IT.size()}'
-    assert len(p)==4, f'expecting coordinate p {p_4D} to be 4D'
-    assert fmHeight==fmWidth, f'feature map not square: {IT.size()}'
+def makeDisjoint(ls,rs,ts,bs,mdl):
+    left_top  = set(ls)&set(ts)
+    left_bot  = set(ls)&set(bs)
+    right_top = set(rs)&set(ts)
+    right_bot = set(rs)&set(bs)
 
+    ls_only = set(ls)-left_top-left_bot
+    rs_only = set(rs)-right_top-right_bot
+    ts_only = set(ts)-left_top-right_top
+    bs_only = set(bs)-left_bot-right_bot
 
-    #quantize inputTensor values
-    #each value in this tensor is now the index of that corresponding pixel
-    # into L
-    #SPEEDUP: use native pytorch quantization technique (github: torch
-    # searchsorted), or build own
-    bins = np.arange(0,1,1/numBins)
-    inputTensorBinned = np.digitize(inputTensor,bins) - 1
+    return left_top, left_bot, right_top, right_bot, ls_only, rs_only, ts_only, bs_only
 
-    (numBatches,numChannels,height,width) = inputTensor.size()
-
-    #NEED TO BE TRACKED??
-    OT = torch.empty_like(inputTensor)
-    #SPEEDUP OPTIONS: broadcasting, parrallelizing, etc
-    for b in range(numBatches):
-        for c in range(numChannels):
-            for row in range(height):
-                for col in range(width):
-                    OT[b,c,row,col] = applyFilter(inputTensor,inputTensorBinned,W,L,(b,c,row,col))
-
-
-    return OT
-#apply filter: IT[p] = sum over q in N(p): W[q]*L[quant(p),quant(q)]*IC[q]
-# IT: Input Tensor: torch tensor (Batch,Channels,Height,Width)
-# IT_binned: Numpy ndarray/pytorch tensor with binned activation values.
-#             Same size as IT.
-# W: spatial filter. pytorch tensor with tracked gradients.
-# L: Deep Cooccurence matrix. pytorch tensor with tracked gradients.
-# p_4d: 4d index of current point of interest.
-def applyFilter(IT,IT_binned,W,L,p_4D):
-    (numBatch,numChannels,fmHeight,fmWidth)  = IT.size()
-    (sfHeight,sfWidth,sfDepth) = W.size()
-    b, pChan, pRow, pCol       = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
-
-    fmRowLims, fmColLims = inChannelNeighbors(fmWidth, sfWidth, (pRow,pCol))
-    fmNeighbors          = lims2Coord(fmRowLims,fmColLims)
-    sfNeighbors          = fm2sf(fmNeighbors, sfWidth, (pRow,pCol))
-    nChannels            = neighborChannels(numChannels, sfDepth, pChan)
-
-    assert len(fmNeighbors)==len(sfNeighbors),\
-            f'fmNeighbors and sfNeighbors should contain the same \
-            neighbors in transformed coordinates'
-
-    filteredP = torch.zeros(1, dtype=torch.float64)
-
-    #neighborChannels is a list of channels from which to pull p's neighbors from.
-    # The values in this list are indeces of the corresponding channels in order of
-    #  their use (from back to front).
-    #When indexing into the spatial filter W, we only care about the relative location
-    #  to p, so wChan is the depth index into W. We start at the back of W and move forward.
-    #sfNeighbors is a transformed version of fmNeighbors and maintains the same order of indx's
-
-    #fill a tensor of same size as spatial filter with:
-    # sf_cons - spatial coefficients used at their respective
-    #           locations. 0's if unused.
-    # ne_cons - neighbors of the current pixel. 0's if outside of
-    #           kernel (if pixel is on a boundary)
-    DEBUG = True
-    if(DEBUG):
-        sf_cons        = torch.zeros_like(W,dtype=torch.float64)
-        neighbors_cons = torch.zeros_like(W,dtype=torch.float64)
-        L_cons         = torch.zeros_like(W,dtype=torch.float64)
-    #neighbor channels nChannels are in order from first to last
-    for chanIndexSf, chanIndexFm in enumerate(nChannels):
-        for i in range(len(fmNeighbors)):
-            q_fm, q_sf = fmNeighbors[i], sfNeighbors[i]
-
-            #3D index. Ensure this indexing is correct. W is 3D
-            q_sf = (chanIndexSf,)   + q_sf   #3D
-            q_fm = (b,chanIndexFm,) + q_fm   #4D
-
-            w_q  = W[q_sf]
-
-            l_pq = L[IT_binned[p_4D]][IT_binned[q_fm]] #check this type
-            I_q  = IT[q_fm]
-            #print(f'\nq_fm: {q_fm}, IT[q]= {I_q}')
-            #print(f'q_sf: {q_sf}, weight_q: {w_q}')
-            #input('...')
-            #print(f'IT values: ({IT[p_4D]}, {IT[q_fm]})')
-            #print(f'L indeces: ({IT_binned[p_4D]}, {IT_binned[q_fm]})')
-            filteredP += w_q*l_pq*I_q
-            if(DEBUG):
-                neighbors_cons[q_sf] = I_q
-                sf_cons[q_sf]        = w_q
-                L_cons[q_sf]         = l_pq
-
-    #input(f'Neighbors around (channel,row,col) = (({pChan},{pRow},{pCol})')
-    #print(f'IT[p] = {IT[p_4D]}')
-    #print(f'Neighbors Used: \n{neighbors_cons}')
-    #print(f'W weights used: \n{sf_cons}')
-    #print(f'L used: {L_cons}')
-    #input('...')
-    return filteredP
 
 # Takes feature map coordinates of p's neighbors (defined by the spatial
 #  filter tensor), and outputs them to p's local coordinates (for
@@ -131,12 +59,6 @@ def lims2Coord(rowLims,colLims):
         for col in np.arange(colLims[0], colLims[1]+1):
             coords.append((row,col))
     return coords
-def localNeighb2TensorMask(localNeighbors, sfDims):
-    sfMask = torch.new_full((3,3,3), 0, dtype=torch.uint8, requires_grad=False)
-    print(sfMask)
-    #loop over each index in local neighbors and set its corresponding
-    # index in the 0's tensor to 1
-    #TODO
 def borderLocPixel(fmWidth, borderSize, twoDimIndex):
     #output: LEFT, RIGHT, TOP, BOTTOM booleans
 

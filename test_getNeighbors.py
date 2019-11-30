@@ -2,6 +2,7 @@ import torch
 import time
 import numpy as np
 
+from colUtils import *
 from getNeighbors import *
 
 def genBorderIndeces(fmWidth, borderSize):
@@ -39,7 +40,7 @@ fmWidth, sfWidth, sfDepth  = 8,5,3
 borderSize = np.floor_divide(sfWidth,2)
 
 ls,rs,ts,bs,mdl = genBorderIndeces(fmWidth, borderSize)
-
+"""
 ## borderLocPixel
 left,right,top,bot = 0,1,2,3
 for p in ls:
@@ -427,9 +428,6 @@ def profilingPytorchGradients(numTrials):
 
 #profilingPytorchGradients(3)
 
-#testing CoL logic:
-
-
 #Testing Apply filter:
 print("\n\n\n")
 #test 1: W,L all ones, IT constant per channel
@@ -444,10 +442,10 @@ L = torch.ones((k,k), requires_grad=True,dtype=torch.float64)
 bins = np.arange(.5,4.5,1)
 IT_Binned = np.digitize(IT,bins) - 1
 
-print(f'Spatial Filter: \n{W}')
-print(f'Input Tensor: \n{IT}')
-print(f'Deep CoOccur: \n{L}')
-print(f'Input Ten Bin:\n{IT_Binned}')
+#print(f'Spatial Filter: \n{W}')
+#print(f'Input Tensor: \n{IT}')
+#print(f'Deep CoOccur: \n{L}')
+#print(f'Input Ten Bin:\n{IT_Binned}')
 ls,rs,ts,bs,mdl            = genBorderIndeces(fmWidth, borderSize)
 lt, lb, rt, rb, l, r, t, b = makeDisjoint(ls,rs,ts,bs,mdl)
 
@@ -751,4 +749,38 @@ for p in mdl:
             f'L gradient incorrect for middle pixels {p}\nis:{L.grad}\nshould be\n{L_mdl_deriv}'
     L.grad.data.zero_()
     W.grad.data.zero_()
+"""
+
+# Test CoL
+print(f'\n\nTESTING COL')
+sfDepth,sfWidth,numChannels,k= 3,3,3,5
+borderSize = np.floor_divide(sfWidth,2)
+
+#zero input tensor
+IT = torch.zeros((1,3,5,5), dtype=torch.float64)
+W  = torch.ones((3,3,3), requires_grad=True,dtype=torch.float64)
+L  = torch.ones((k,k), requires_grad=True,dtype=torch.float64)
+print(f'Spatial Filter: \n{W}')
+print(f'Deep CoOccur: \n{L}')
+print(f'Input Tensor: \n{IT}')
+OT = CoL(IT, W, L)
+
+ls,rs,ts,bs,mdl            = genBorderIndeces(fmWidth, borderSize)
+lt, lb, rt, rb, l, r, t, b = makeDisjoint(ls,rs,ts,bs,mdl)
+
+assert torch.allclose(OT, torch.zeros((1,numChannels,fmWidth,fmWidth), dtype=torch.float64)), \
+        f'CoL: IT all zeros\n{IT}, OT should be all zeros, actuall is:\n{OT}'
+(b,nc,rows,cols) = OT.size()
+for batch in range(b):
+    for chan in range(nc):
+        for row in range(rows):
+            for col in range(cols):
+                fp = OT[(batch,chan,row,col)]
+                fp.backward()
+                assert torch.allclose(W.grad, torch.zeros((sfWidth,sfWidth,sfDepth), dtype=torch.float64)), \
+                        f'CoL: IT all zeros\n{IT}, all grad should be all zeros, actuall is:\n{W.grad}'
+                assert torch.allclose(L.grad, torch.zeros((k,k), dtype=torch.float64)), \
+                        f'CoL: IT all zeros\n{IT}, all grad should be all zeros, actuall is:\n{L.grad}'
+                L.grad.data.zero_()
+                W.grad.data.zero_()
 
