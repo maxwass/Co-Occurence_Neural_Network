@@ -381,8 +381,10 @@ def profilingPytorchGradients(numTrials):
         print(f'Ave Time/Stdv torch ops: {np.mean(adding)}, {np.std(adding)}')
         print(f'Ave Time/Stdv backward:  {np.mean(backward)}, {np.std(backward)}\n\n')
 
+
+
+
 test_borderLocPixel()
 test_neighborChannels()
 test_sfNeighbors()
 #profilingPytorchGradients(3)
-

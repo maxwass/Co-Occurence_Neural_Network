@@ -32,7 +32,6 @@ def makeDisjoint(ls,rs,ts,bs,mdl):
 
     return left_top, left_bot, right_top, right_bot, ls_only, rs_only, ts_only, bs_only
 
-
 # Takes feature map coordinates of p's neighbors (defined by the spatial
 #  filter tensor), and outputs them to p's local coordinates (for
 #  indexing into hxwxd spatial filter tensor).

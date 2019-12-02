@@ -1,0 +1,21 @@
+
+
+Questions:
+
+
+speed up:
+    k binning optimization in paper
+    dtype 64 -> 32
+    new tensor on each addition
+
+does W have to be normalized?
+applyFilter takes OT as arg and adjusts entries instead of returning
+Have to normalize input for binning?
+    should input always be between 0 and 1?
+    how to bin?
+
+
+TODO:
+    commit
+    look in paper on how to bin/normalize input
+    set up NN module
