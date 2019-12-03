@@ -383,7 +383,107 @@ def profilingPytorchGradients(numTrials):
 
 
 
+def brute_force_normalize(IT):
+    numBatches, numChannels,fmHeight,fmWidth = IT.shape
+    OT_batch_norm, OT_batch_norm_min_add = torch.zeros_like(IT),torch.zeros_like(IT)
+    OT_chann_norm, OT_chann_norm_min_add = torch.zeros_like(IT), torch.zeros_like(IT)
 
+    DEBUG=False
+    #find min of each batch and channel
+    minEachChannel = np.zeros((numBatches,numChannels))
+    for b in range(numBatches):
+        for chan in range(numChannels):
+            currMin = np.inf
+            for row in range(fmHeight):
+                for col in range(fmWidth):
+                    val = IT[b,chan,row,col]
+                    if (val<currMin):
+                        currMin=val
+            minEachChannel[b,chan] = currMin
+
+    minEachBatch = np.min(minEachChannel,axis=1)
+
+    #add in minumum
+    for b in range(numBatches):
+        for chan in range(numChannels):
+            for row in range(fmHeight):
+                for col in range(fmWidth):
+                    OT_batch_norm_min_add[b,chan,row,col] = IT[b,chan,row,col] + (-1)*minEachBatch[b]
+                    OT_chann_norm_min_add[b,chan,row,col] = IT[b,chan,row,col] + (-1)*minEachChannel[b,chan]
+
+    #find max of each batch/channel
+    maxEachChannel = np.zeros((numBatches,numChannels))
+    maxEachBatch = np.zeros(numBatches)
+    for b in range(numBatches):
+        currMaxBatch  = -np.inf
+        for chan in range(numChannels):
+            currMaxChan = -np.inf
+            for row in range(fmHeight):
+                for col in range(fmWidth):
+                    val_chan  = OT_chann_norm_min_add[b,chan,row,col]
+                    val_batch = OT_batch_norm_min_add[b,chan,row,col]
+                    if (val_chan>currMaxChan):
+                        currMaxChan = val_chan
+                    if (val_batch>currMaxBatch):
+                        currMaxBatch = val_batch
+            maxEachChannel[b,chan] = currMaxChan
+        maxEachBatch[b] = currMaxBatch
+
+   #divide by maximum
+    for b in range(numBatches):
+        for chan in range(numChannels):
+            for row in range(fmHeight):
+                for col in range(fmWidth):
+                    OT_batch_norm[b,chan,row,col] = OT_batch_norm_min_add[b,chan,row,col]/maxEachBatch[b]
+                    OT_chann_norm[b,chan,row,col] = OT_chann_norm_min_add[b,chan,row,col]/maxEachChannel[b,chan]
+
+    if(DEBUG):
+        print(f'IT dims: ({numBatches}, {numChannels},{fmWidth},{fmWidth})')
+        print(f'IT:\n{IT}')
+        print(f'minimum of each channel:\n{minEachChannel}')
+        print(f'minimum of each batch:\n{minEachBatch}')
+        print(f'Batch   Norm Added min:\n{OT_batch_norm_min_add}\n')
+        print(f'Channel Norm Added min:\n{OT_chann_norm_min_add}\n')
+        print(f'max of each channel:\n{maxEachChannel}')
+        print(f'max of each batch:\n{maxEachBatch}')
+        print(f'Batch   Norm Div by max:\n{OT_batch_norm}\n')
+        print(f'Channel Norm Div by max:\n{OT_chann_norm}\n')
+        input('...')
+
+    return OT_batch_norm, OT_chann_norm
+
+
+def compareBrute2Broadcast(numBatches,numChannels,fmWidth):
+    IT = torch.randn((numBatches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
+
+    t0 = time.time()
+    OT_batch_normed_brute, OT_channel_normed_brute = brute_force_normalize(IT)
+
+    t1 = time.time()
+    IT_batch_normed = normalizeTensorPerBatch(IT)
+    IT_channel_normed = normalizeTensorPerChannel(IT)
+    t2 = time.time()
+    brute_time, broad_time = (t1-t0), (t2-t1)
+
+    print(f'IT dims: ({numBatches}, {numChannels},{fmWidth},{fmWidth})')
+    print(f'\tbrute: {brute_time}, broad: {broad_time}')
+    assert torch.allclose(OT_batch_normed_brute,IT_batch_normed),\
+        f'Broadcasting in batch normalization not working as expected\
+        \nbrute force:\n{OT_batch_normed_brute}\
+        \nbroadcast:  \n{IT_batch_normed}'
+    assert torch.allclose(OT_channel_normed_brute,IT_channel_normed),\
+        f'Broadcasting in channel normalization not working as expected'
+
+    return [brute_time, broad_time]
+
+def test_normalizeTensor(highBatch,highChan,highFm):
+    #try different number of Batches/channels/fm sizes
+    for numBatches in np.arange(1,highBatch,1):
+        for numChannels in np.arange(1,highChan,3):
+            for fmWidth in np.arange(2,highFm,10):
+                compareBrute2Broadcast(numBatches,numChannels,fmWidth)
+
+test_normalizeTensor(2,8,42)
 test_borderLocPixel()
 test_neighborChannels()
 test_sfNeighbors()

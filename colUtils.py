@@ -156,3 +156,94 @@ def neighborChannels(numChannels, spatialFilterDepth, outChannel):
             neighChannels[i] -= numChannels #shift back to beggining channels
 
     return neighChannels
+
+# OT: normalized input tensor
+#
+def normalizeTensorPerBatch(IT):
+
+    #calculate the minimum value in each batch
+    # add this minumum value to each batch pointwise-> range of values now [0,old_max+old_min] per batch
+    numBatches, numChannels,fmHeight,fmWidth = IT.shape
+                                                          # (numBatches,,numChannels*fmWidth^2)
+    batchVecs            = torch.reshape(IT, (numBatches, numChannels*fmHeight*fmWidth))
+    batchMinVals_raw , _ = torch.min(batchVecs,1)          # (numBatches)
+    batchMinVals         = -1*batchMinVals_raw # if(minVal<0): add -1*minVal
+                                               # if(minVal>0): add -1*minVal
+    reshapeBatchMinVals = batchMinVals.view(numBatches,1) # (numBatches,1)
+                                                          # broadcasting will make addition
+                                                          # (numBatches, max(dim 2 of x,dim 2 of y))
+
+    addMinPerBatch      = torch.add(batchVecs, reshapeBatchMinVals)
+
+    # get max value of all channels in each batch
+    #round values to get rid of tiny values?
+    # divide by the maximum values of each batch
+    newMaxVals, _     = torch.max(addMinPerBatch,1)
+    reshapeNewMaxVals = newMaxVals.view(numBatches,1)
+    divMaxPerBatch    = torch.div(addMinPerBatch, reshapeNewMaxVals)
+
+    DEBUG=False
+    if(DEBUG):
+        input('entering per batch broadcasting,..')
+        print(f'Input Tensor Shape: \n{IT.shape}\n')
+        print(f'Input Tensor: \n{IT}\n')
+        print(f'Batch->Vector:\n{batchVecs}\n')
+        print(f'(-1) * minimum values/batch:\n{batchMinVals}\n')
+        print(f'reshape min values for broadcasting: {reshapeBatchMinVals.shape}\n')
+        print(f'add in min values: \n{addMinPerBatch}\n')
+
+        print(f'maximum values/batch:\n{newMaxVals}\n')
+        print(f'reshape max values for broadcasting: shape: {reshapeNewMaxVals.shape}\n {reshapeNewMaxVals}')
+        print(f'shape of tensor for div: {addMinPerBatch.shape}\n')
+        print(f'divide out max values: \n{divMaxPerBatch}\n')
+        input('leaving per batch broadcasting,..')
+
+    # now all values in each batch are in range [0,1]
+    # bring back to regular shape
+    IT_normalized_per_batch = torch.reshape(divMaxPerBatch, (numBatches,numChannels,fmHeight,fmWidth))
+
+    return IT_normalized_per_batch
+
+def normalizeTensorPerChannel(IT):
+
+    #calculate the minimum value in each channel
+    # add this minumum value to each channel pointwise-> range of values now [0,old_max+old_min] per batch
+    numBatches, numChannels,fmHeight,fmWidth = IT.shape
+                                                          # (numBatches*numChannels,fmWidth^2)
+    channelVecs            = torch.reshape(IT, (numBatches*numChannels, fmHeight*fmWidth))
+    channelMinVals_raw , _ = torch.min(channelVecs,1)          # (numBatches)
+    channelMinVals         = -1*channelMinVals_raw # if(minVal<0): add -1*minVal
+                                                   # if(minVal>0): add -1*minVal
+    reshapeChannelMinVals = channelMinVals.view(numBatches*numChannels,1) # (numBatches*numChannels,1)
+                                                          # broadcasting will make addition
+                                                          # (numBatches*numChannels, max(dim 2 of x,dim 2 of y))
+    addMinPerChannel      = torch.add(channelVecs, reshapeChannelMinVals)
+
+    # get max value of each channels
+    #round values to get rid of tiny values?
+    # divide by the maximum values of each channel
+    newMaxVals, _     = torch.max(addMinPerChannel,1)
+    reshapeNewMaxVals = newMaxVals.view(numBatches*numChannels,1)
+    divMaxPerChannel    = torch.div(addMinPerChannel, reshapeNewMaxVals)
+
+    DEBUG=False
+    if(DEBUG):
+        input('entering per channel broadcasting,..')
+        print(f'Input Tensor Shape: \n{IT.shape}\n')
+        print(f'Input Tensor: \n{IT}\n')
+        print(f'Channel->Vector:\n{channelVecs}\n')
+        print(f'(-1) * minimum values/channel:\n{channelMinVals}\n')
+        print(f'reshape min values for broadcasting: {reshapeChannelMinVals.shape}\n')
+        print(f'add in min values: \n{addMinPerChannel}\n')
+
+        print(f'maximum values/Channel:\n{newMaxVals}\n')
+        print(f'reshape max values for broadcasting: shape: {reshapeNewMaxVals.shape}\n {reshapeNewMaxVals}')
+        print(f'shape of tensor for div: {addMinPerChannel.shape}\n')
+        print(f'divide out max values: \n{divMaxPerChannel}\n')
+        input('leaving per chan broadcasting,..')
+
+    # now all values in each channel are in range [0,1]
+    # bring back to regular shape
+    IT_normalized_per_channel = torch.reshape(divMaxPerChannel, (numBatches,numChannels,fmHeight,fmWidth))
+
+    return IT_normalized_per_channel
