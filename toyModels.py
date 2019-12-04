@@ -26,9 +26,16 @@ class conv339(nn.Module):
         self.fc1 = nn.Linear(2*2*9, 2, bias=True)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
+        #print(f'input shape: {x.size()}') #[3, 1, 10, 10]
+        x = F.relu(self.conv1(x))
+        #print(f'after conv1 shape: {x.size()}') #[3, 9, 10, 10]
+        x = self.pool(x)
+        #print(f'after pool shape: {x.size()}') #[3, 9, 2, 2]
         x = x.view(-1, 2*2*9)
+        #print(f'after resize shape: {x.size()}') #[3, 36]
         x = self.fc1(x)
+        #print(f'after fc shape: {x.size()}') #[3, 2]
+        #input('..check sizes..')
         return x
 
 
@@ -40,9 +47,14 @@ class fc2fc(nn.Module):
         self.fc2 = nn.Linear(36, 2, bias=True)
 
     def forward(self, x):
+        #print(f'\ninput shape: {x.size()}\n') #[3, 1, 10, 10]
         x = x.view(-1,100)
+        #print(f'\nafter reshape: {x.size()}\n') #[3, 100]
         x = F.relu(self.fc1(x))
+        #print(f'\nafter fc1111 shape: {x.size()}\n') #[3, 36]
         x = self.fc2(x)
+        #print(f'\nafter fc2222 shape: {x.size()}\n') #[3, 2]
+        #input('..check sizes..')
         return x
 
 #CoL(4×4)→avg(5×5)→fc(36×2)

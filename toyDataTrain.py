@@ -15,7 +15,8 @@ import torch.optim as optim
 
 
 from torch.utils.tensorboard import SummaryWriter
-def compute_acc(dataloader, name):
+def compute_acc(dataset, name):
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=False)
     correct, total = 0, 0
     acc = 0.0
     with torch.no_grad():
@@ -28,6 +29,7 @@ def compute_acc(dataloader, name):
         acc = (100 * correct / total)
         print(f'\t{name}: {correct}/{total} => {acc}')
     return acc
+
 
 
 
@@ -47,8 +49,10 @@ classes     = ('0: (.1 .4 .4 .1) ', '1: (.4 .1 .1 .4)')
 
 
 #choose network
-net = conv339() #has bug in architechure, not sure why
-#net = fc2fc()
+net = conv339() #params: 164
+#net = fc2fc()  #params: 3710
+num_net_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+print(f'# Model Parameters: {num_net_params}')
 
 #optimizer
 criterion = nn.CrossEntropyLoss() #loss not specified in paper but in code only cross entroyp
@@ -66,9 +70,10 @@ images, labels = dataiter.next()
 writer.add_graph(net, images)
 writer.close()
 
-
+torch.set_printoptions(precision=2)
 #training loop
 running_loss = 0.0
+j = 0
 for epoch in range(num_iterations):  # loop over the dataset multiple times
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
@@ -83,26 +88,26 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
         optimizer.step()
         running_loss += loss.item()
 
-        if i % 1000 == 999:    # every 1000 mini-batches...
+        if i % 100 == 99:    # every 1000 mini-batches...
 
             # ...log the running loss
-            writer.add_scalar('training loss', running_loss / 1000, epoch * len(trainloader) + i)
+            writer.add_scalar('training loss', running_loss / 1000,global_step=j)# epoch * len(trainloader) + i)
 
             # ...log a Matplotlib Figure showing the model's predictions on a random mini-batch
             #TODO
             #writer.add_figure('predictions vs. actuals', plot_classes_preds(net, inputs, labels), global_step=epoch * len(trainloader) + i)
-
             running_loss = 0.0
             print(f'{epoch} epoch, {i}th minibatch loop')
-            acc_train = compute_acc(trainloader,"train")
-            acc_test  = compute_acc(testloader, "test")
-            writer.add_scalar('test accuracy', acc_test)
-            writer.add_scalar('train accuracy', acc_train)
+            acc_train = compute_acc(trainset,"train")
+            acc_test  = compute_acc(testset, "test")
+            writer.add_scalar('test accuracy', acc_test,global_step=j)
+            writer.add_scalar('train accuracy', acc_train,global_step=j)
             if(False):
-            print(f'outputs: {outputs}')
-            print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')
-            _, pred = torch.max(outputs.data, 1)
-            inspect_batch(data,outputs=pred,print_img=True)
+                print(f'outputs: {outputs}')
+                print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')
+                _, pred = torch.max(outputs.data, 1)
+                inspect_batch(data,outputs=pred,print_img=True)
+        j+=1
 
 print('Finished Training')
 
