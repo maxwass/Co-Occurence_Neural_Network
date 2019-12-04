@@ -31,15 +31,15 @@ def compute_acc(dataset, name):
     return acc
 
 
+numChannels, fmHeight, fmWidth = 1, 10, 10
+image_size = (numChannels, fmHeight, fmWidth)
 
-
-
-train_size, test_size, num_classes, image_size, random_offset = 6000, 1000, 2, (1, 10, 10), 3
 pixel_vals = [0.0,0.333,0.666,1.0]
 distribs   = np.array([[0.1,0.4,0.4,0.1],[0.4,0.1,0.1,0.4]])
-num_iterations, batch_size, num_workers = 2000, 3, 2
-lr = 1e-4
 
+lr = 1e-4
+num_iterations, batch_size, num_workers = 2000, 3, 2
+train_size, test_size, num_classes, random_offset = 6000, 1000, 2, 3
 trainset    = ToyData(train_size, num_classes, image_size, distribs, random_offset, pixel_vals)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 
@@ -49,10 +49,13 @@ classes     = ('0: (.1 .4 .4 .1) ', '1: (.4 .1 .1 .4)')
 
 
 #choose network
-net = conv339() #params: 164
+input_tensor_shape = (batch_size,)+image_size
+net = ColNet(input_tensor_shape)
+#net = conv339() #params: 164 (155 from my calc, must be bias in convs)
 #net = fc2fc()  #params: 3710
 num_net_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
 print(f'# Model Parameters: {num_net_params}')
+print(str(net))
 
 #optimizer
 criterion = nn.CrossEntropyLoss() #loss not specified in paper but in code only cross entroyp
@@ -62,7 +65,7 @@ optimizer = optim.Adam(net.parameters(), lr=lr)#, momentum=0.9)
 #tensorboard
 
 # default `log_dir` is "runs" - we'll be more specific here
-writer = SummaryWriter('runs/toyData_exp_2')
+writer = SummaryWriter('runs/toyData_CoL_1')
 
 # get some random training images
 dataiter = iter(trainloader)

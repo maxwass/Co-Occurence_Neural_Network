@@ -25,6 +25,9 @@ Should output for generated data be a 2d image or 3D image with 1 channel
     QUESTIONS
 should the fc layers in toy examples have bias?
 
+initialization of param vals: pytorch does not have truncated normal. Using regular normal initialization 
+    and setting large values to some constant
+
 does W have to be normalized?
 
 

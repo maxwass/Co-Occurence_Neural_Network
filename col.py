@@ -17,6 +17,7 @@ def CoL(IT, W, L, batchNormActBounds, indxLookUpTable):
     # into L
     #SPEEDUP: use native pytorch quantization technique (github: torch
     # searchsorted), or build own
+    #TODO make bins an input to CoL
     (k,k) = L.size()
     bins  = np.linspace(lowerBound, higherBound,k+1,endpoint=True)
 
