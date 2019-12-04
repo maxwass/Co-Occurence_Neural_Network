@@ -1,21 +1,49 @@
+installs
+conda pytorch
+conda install -c conda-forge torchvision
+conda install torchvision -c pytorch
 
 
-Questions:
+
+    ANSWERED QUESTIONS
+reLu need before cross entropy?
+NO: https://stats.stackexchange.com/questions/166595/how-to-apply-cross-entropy-on-rectified-linear-units
+
+should 'target' in __genData__ be a number??
+    Yes: Copied from torch code:
+    See __getItem__: https://pytorch.org/docs/stable/_modules/torchvision/datasets/fakedata.html
+
+Generate images in init or while looping?
+    Moved ot init. Index from python list.
+    I think new data was being generated on each getItem, providing unlimited training data
 
 
-speed up:
-    k binning optimization in paper
-    dtype 64 -> 32
-    new tensor on each addition
+Should output for generated data be a 2d image or 3D image with 1 channel
+    1xWxH seems to be working
+
+
+    QUESTIONS
+should the fc layers in toy examples have bias?
 
 does W have to be normalized?
+
+
+    OPTIMIZATIONS
+k binning optimization in paper
+dtype 64 -> 32 -> 16
+new tensor on each addition
 applyFilter takes OT as arg and adjusts entries instead of returning
-Have to normalize input for binning?
-    should input always be between 0 and 1?
-    how to bin?
 
 
 TODO:
-    commit
-    look in paper on how to bin/normalize input
-    set up NN module
+    look in paper on how 
+        to normalize input (per batch or per channel)
+        optomize forward pass
+    
+    Initialize weights
+    
+    train small FC/conv network on toy data and make plot
+    
+    look into training network on university server
+    
+    make CoL NN module
