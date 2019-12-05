@@ -5,6 +5,8 @@ from torchvision.datasets import CIFAR10, CIFAR100, SVHN, VisionDataset
 from torch.utils.data import Dataset
 import numpy as np
 
+import os.path
+
 from genToyData import *
 from toyModels import *
 
@@ -47,15 +49,39 @@ testset    = ToyData(test_size, num_classes, image_size, distribs, random_offset
 testloader  = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 classes     = ('0: (.1 .4 .4 .1) ', '1: (.4 .1 .1 .4)')
 
+input_tensor_shape = (batch_size,)+image_size
+
 
 #choose network
-input_tensor_shape = (batch_size,)+image_size
-net = ColNet(input_tensor_shape)
-#net = conv339() #params: 164 (155 from my calc, must be bias in convs)
-#net = fc2fc()  #params: 3710
+network = "fc"
+if network=="col":
+    PATH = './models/col_net.pth'
+    net = ColNet(input_tensor_shape) #params 90
+elif network=="conv":
+    net = conv339() #params: 164 (155 from my calc, must be bias in convs)
+    PATH = './models/conv339_net.pth'
+elif network=="fc":
+    net = fc2fc()  #params: 3710
+    PATH = './models/fc2fc_net.pth'
+
+
+if os.path.isfile(PATH):
+    net.load_state_dict(torch.load(PATH))
+    net.eval()
+    print (f'Model {network} Exists in {PATH}: loading old params...')
+else:
+    print ("Model {network} does not exist, starting cold...")
+
 num_net_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
 print(f'# Model Parameters: {num_net_params}')
 print(str(net))
+
+#Where to train model
+#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# Assuming that we are on a CUDA machine, this should print a CUDA device:
+print('Is GPU available?\n\t')
+print(torch.cuda.is_available())
+
 
 #optimizer
 criterion = nn.CrossEntropyLoss() #loss not specified in paper but in code only cross entroyp
@@ -63,24 +89,24 @@ optimizer = optim.Adam(net.parameters(), lr=lr)#, momentum=0.9)
 
 
 #tensorboard
-
 # default `log_dir` is "runs" - we'll be more specific here
-writer = SummaryWriter('runs/toyData_CoL_1')
+tensorboard_proj='runs/'+network
+writer = SummaryWriter(tensorboard_proj)
 
 # get some random training images
-dataiter = iter(trainloader)
-images, labels = dataiter.next()
-writer.add_graph(net, images)
+images, labels = next(iter(trainloader))
+writer.add_graph(net,images)
 writer.close()
 
 torch.set_printoptions(precision=2)
 #training loop
-running_loss = 0.0
+running_loss, best_loss = 0.0, np.inf
 j = 0
 for epoch in range(num_iterations):  # loop over the dataset multiple times
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data
+        #inputs, labels = data[0].to(device), data[1].to(device)
         # zero the parameter gradients
         optimizer.zero_grad()
 
@@ -90,6 +116,11 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
+
+        if loss.item() < best_loss:
+            best_loss = loss.item()
+            #save params
+            torch.save(net.state_dict(), PATH)
 
         if i % 100 == 99:    # every 1000 mini-batches...
 
@@ -105,6 +136,7 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
             acc_test  = compute_acc(testset, "test")
             writer.add_scalar('test accuracy', acc_test,global_step=j)
             writer.add_scalar('train accuracy', acc_train,global_step=j)
+            writer.flush()
             if(False):
                 print(f'outputs: {outputs}')
                 print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')

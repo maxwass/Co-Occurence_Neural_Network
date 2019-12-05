@@ -21,6 +21,9 @@ Generate images in init or while looping?
 Should output for generated data be a 2d image or 3D image with 1 channel
     1xWxH seems to be working
 
+How to plot multiple outputs on TensorFlow?
+    save all logs in same higher lever folder and open browser
+    https://stackoverflow.com/questions/48951136/plot-multiple-graphs-in-one-plot-using-tensorboard/48951430
 
     QUESTIONS
 should the fc layers in toy examples have bias?
