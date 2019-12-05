@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 import numpy as np
 
 from genToyData import *
+from col import *
 from lookupTable import genLookUpTable
 
 import torch.nn as nn
@@ -51,17 +52,22 @@ class fc2fc(nn.Module):
         #input('..check sizes..')
         return x
 
-class CoL(nn.Module):                    #HxWxD <- confirm this in init/use
+class CoL_Module(nn.Module):                                           #HxWxD
     def __init__(self, input_tensor_size, co_shape=(5,5), w_shape=(1,3,3), learn_co=True, learn_w=True):
-        super(CoL, self).__init__()
+        super(CoL_Module, self).__init__()
 
+        """print(f'IN COL __INIT__: ABOUT TO UNPACK INPUT_TENSOR_SIZE INTO 4:')
+        print(f'type(input_tensor_size): {type(input_tensor_size)}')
+        input('printing entire input_tensor_size')
+        print(f'{input_tensor_size}')
+        input('inspect input_tensor_size')
+        """
         numBatches,numChannels,fmHeight,fmWidth = input_tensor_size
-        print(f'\n\nIn CoL init:')
-        print(f'input_tensor_size: ({numBatches}, {numChannels}, {fmHeight}, {fmWidth})')
+
         assert all(x>0 for x in input_tensor_size) and fmHeight==fmWidth
         assert co_shape[0]==co_shape[1] and isinstance(co_shape[0],int)\
                 and all(x>0 for x in co_shape), \
-                'CoL given improper shape for cooccurence matrix: {co_shape}'
+                'CoL_Module given improper shape for cooccurence matrix: {co_shape}'
 
         (w_depth, w_height,w_width) = w_shape
         print(f'spatial filter W dims: ({w_height}, {w_width}, {w_depth})')
@@ -69,8 +75,8 @@ class CoL(nn.Module):                    #HxWxD <- confirm this in init/use
                 isinstance(w_height,int) and \
                 isinstance(w_depth,int) and \
                 all(x>0 for x in w_shape), \
-                f'CoL given improper shape for spatial filter w: {w_shape}'
-        assert learn_co or learn_w, f'CoL must learn L {learn_co} or W {learn_w}'
+                f'CoL_Module given improper shape for spatial filter w: {w_shape}'
+        assert learn_co or learn_w, f'CoL_Module must learn L {learn_co} or W {learn_w}'
 
         self.k                 = co_shape[0]
         self.w_shape           = w_shape
@@ -94,10 +100,11 @@ class CoL(nn.Module):                    #HxWxD <- confirm this in init/use
             self.W = torch.ones(size=self.w_shape, dtype=torch.float32)
             self.register_buffer("Spatial Filter W", self.W)
 
-        self.getInfo()
     def forward(self, input_tensor):
         # See the autograd section for explanation of what happens here.
         # TO DO normalize input between (0,1)
+        #print(f'IN COL FORWARD: {input_tensor.size()}')
+        #input('...')
         return CoL(input_tensor, self.W, self.L, self.actBounds, self.neighbor_lookup_table)
 
     def extra_repr(self):
@@ -109,7 +116,7 @@ class CoL(nn.Module):                    #HxWxD <- confirm this in init/use
         lc ='IS' if self.learn_co else 'IS NOT'
         lw ='IS' if self.learn_co else 'IS NOT'
 
-        spiel  = f'CoL Module: \n\t'
+        spiel  = f'CoL_Module: \n\t'
         spiel += f'L is of size {self.k}x{self.k}.  L {lc} being learned.\n\t'
         spiel += f'W dims (H,W,D)= {self.w_shape}.  W {lw} being learned.\n\t'
         spiel += f'Expecting input tensor (batch,chan,height,width) = {self.input_tensor_size}\n\t'
@@ -121,11 +128,19 @@ class CoL(nn.Module):                    #HxWxD <- confirm this in init/use
 class ColNet(nn.Module):
     def __init__(self, input_tensor_size):
         super(ColNet, self).__init__()                          #DepthxHeightxWidth
-        self.col = CoL(input_tensor_size, co_shape=(4,4), w_shape=(1,3,3), learn_w=False)
+        self.col = CoL_Module(input_tensor_size, co_shape=(4,4), w_shape=(1,3,3), learn_w=False)
         self.pool = nn.AvgPool2d((5,5), stride=1, padding=0,count_include_pad=False)
         self.fc = nn.Linear(36, 2, bias=True)
 
     def forward(self, x):
+        #print(f'input shape: {x.size()}') #[3, 1, 10, 10]
+        """
+        print('IN ColNet FORWARD: about to step into self.col')
+        print(f'x.size(): {x.size()}')
+        input('about to print x itself...')
+        print(x)
+        input('...inspect x')
+        """
         x = self.pool(self.col(x))
         x = x.view(-1,36)
         x = self.fc(x)

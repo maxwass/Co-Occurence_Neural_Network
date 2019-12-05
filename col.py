@@ -8,10 +8,10 @@ TIMING = False
 def CoL(IT, W, L, batchNormActBounds, indxLookUpTable):
     lowerBound, higherBound = batchNormActBounds[0],batchNormActBounds[1]
     (numBatches, numChannels, fmHeight, fmWidth) = IT.size()
-    assert len(IT.size())==4, f'Input Tensor not 4D {IT.size()}'
-    assert fmHeight==fmWidth, f'feature map not square: {IT.size()}'
+    #assert len(IT.size())==4, f'Input Tensor not 4D {IT.size()}'
+    #assert fmHeight==fmWidth, f'feature map not square: {IT.size()}'
     (k_h,k) = L.size()
-    assert len(L.size())==2 and k_h==k, f'deep CoOccur L not square: {L}'
+    #assert len(L.size())==2 and k_h==k, f'deep CoOccur L not square: {L}'
     #quantize inputTensor values
     #each value in this tensor is now the index of that corresponding pixel
     # into L
