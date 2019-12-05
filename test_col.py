@@ -18,8 +18,11 @@ def test_applyFilter():
     IT[:,0,:,:], IT[:,1,:,:], IT[:,2,:,:]  = 1.0, 2.0, 3.0
     W = torch.ones((3,3,3), requires_grad=True,dtype=torch.float32)
     L = torch.ones((k,k), requires_grad=True,dtype=torch.float32)
-    bins = np.arange(.5,4.5,1)
+
+    bins  = np.linspace(0.0, 3.0,k,endpoint=True)
     IT_Binned = np.digitize(IT,bins) - 1
+    #print(bins)
+    #print(IT_Binned)
 
     #print(f'Spatial Filter: \n{W}')
     #print(f'Input Tensor: \n{IT}')
@@ -49,7 +52,7 @@ def test_applyFilter():
     bottom_deriv[:,2,:]=0.0
 
     L_side_deriv = torch.zeros((k,k),dtype=torch.float32)
-    L_side_deriv[1,0], L_side_deriv[1,1],  L_side_deriv[1,2] = 6*1,6*2,6*3
+    L_side_deriv[2,1], L_side_deriv[2,2],  L_side_deriv[2,4] = 6*1,6*2,6*3
 
 
     top_left_deriv = torch.ones((3,3,3), dtype=torch.float32)
@@ -69,14 +72,14 @@ def test_applyFilter():
     bottom_right_deriv[:,2,:], bottom_right_deriv[:,:,2] = 0.0, 0.0
 
     L_corner_deriv = torch.zeros((k,k),dtype=torch.float32)
-    L_corner_deriv[1,0], L_corner_deriv[1,1],  L_corner_deriv[1,2] = 4*1,4*2,4*3
+    L_corner_deriv[2,1], L_corner_deriv[2,2],  L_corner_deriv[2,4] = 4*1,4*2,4*3
 
 
     mdl_deriv = torch.ones((3,3,3), dtype=torch.float32)
     mdl_deriv[1,:,:], mdl_deriv[2,:,:] = 2, 3
 
     L_mdl_deriv = torch.zeros((k,k), dtype=torch.float32)
-    L_mdl_deriv[1,0], L_mdl_deriv[1,1],  L_mdl_deriv[1,2] = 9*1,9*2,9*3
+    L_mdl_deriv[2,1], L_mdl_deriv[2,2],  L_mdl_deriv[2,4] = 9*1,9*2,9*3
 
     #generate look up table for neighbors
     indxLookUpTable = genLookUpTable(IT.size(), W.size())
@@ -203,7 +206,7 @@ def test_applyFilter():
     bottom_deriv[:,2,:]=0.0
 
     L_side_deriv = torch.zeros((k,k), dtype=torch.float32)
-    L_side_deriv[0,0], L_side_deriv[0,1],  L_side_deriv[0,2] = 6*1,6*2,6*3
+    L_side_deriv[1,1], L_side_deriv[1,2],  L_side_deriv[1,4] = 6*1,6*2,6*3
 
 
     top_left_deriv = torch.ones((3,3,3), dtype=torch.float32)
@@ -223,14 +226,14 @@ def test_applyFilter():
     bottom_right_deriv[:,2,:], bottom_right_deriv[:,:,2] = 0.0, 0.0
 
     L_corner_deriv = torch.zeros((k,k), dtype=torch.float32)
-    L_corner_deriv[0,0], L_corner_deriv[0,1],  L_corner_deriv[0,2] = 4*1,4*2,4*3
+    L_corner_deriv[1,1], L_corner_deriv[1,2],  L_corner_deriv[1,4] = 4*1,4*2,4*3
 
 
     mdl_deriv = torch.ones((3,3,3), dtype=torch.float32)
     mdl_deriv[2,:,:], mdl_deriv[0,:,:] = 2, 3
 
     L_mdl_deriv = torch.zeros((k,k), dtype=torch.float32)
-    L_mdl_deriv[0,0], L_mdl_deriv[0,1],  L_mdl_deriv[0,2] = 9*1,9*2,9*3
+    L_mdl_deriv[1,1], L_mdl_deriv[1,2],  L_mdl_deriv[1,4] = 9*1,9*2,9*3
     for p in l:
         p_4D = (0,chan,p[0],p[1])
         filteredP  = applyFilter(IT,IT_Binned,W,L,p_4D,indxLookUpTable)
