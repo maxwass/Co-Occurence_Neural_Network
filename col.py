@@ -17,10 +17,10 @@ def CoL(IT, W, L, batchNormActBounds, indxLookUpTable):
     # into L
     #SPEEDUP: use native pytorch quantization technique (github: torch
     # searchsorted), or build own
-    #TODO make bins an input to CoL
-    (k,k) = L.size()
-    bins  = np.linspace(lowerBound, higherBound,k+1,endpoint=True)
 
+    #TODO make bins an input to CoL
+    (k,k) = L.size()        # INCORRECT LINSPACE: k+1 vs k. run test
+    bins  = np.linspace(lowerBound, higherBound,k,endpoint=True)
 
     if(TIMING):
         timeBin, timeUtil, timeAFRest = 0.0, 0.0, 0.0
@@ -62,6 +62,13 @@ def CoL(IT, W, L, batchNormActBounds, indxLookUpTable):
 # indxLookUpTable: large lookup table storing the lists of fm,sf neighbors
 #              given each pixel p (4D)
 def applyFilter(IT,IT_binned,W,L,p_4D, indxLookUpTable):
+
+    """
+    print(f'In apply filter: printing args')
+    print(f'W.size: {W.size()}')
+    print(f'L.size: {L.size()}')
+    print(f'p_4d: {p_4D}')
+    """
     (numBatch,numChannels,fmHeight,fmWidth)  = IT.size()
     (sfHeight,sfWidth,sfDepth) = W.size()
     pBatch, pChan, pRow, pCol = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
@@ -104,6 +111,7 @@ def applyFilter(IT,IT_binned,W,L,p_4D, indxLookUpTable):
         q_fm, q_sf = fmNeighbors[i], sfNeighbors[i]
         #print(f'p_4d: {p_4D}, q_fm: {q_fm}, q_sf: {q_sf}')
         pBin, qBin = IT_binned[p_4D], IT_binned[q_fm]
+        #print(f'L indeces: pBin {pBin}, qBin {qBin}')
         w_q  = W[q_sf]
         l_pq = L[pBin,qBin]
         I_q  = IT[q_fm]
