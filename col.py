@@ -5,8 +5,8 @@ from colUtils import *
 from lookupTable import *
 
 TIMING = False
-def CoL(IT, W, L, batchNormActBounds, indxLookUpTable):
-    lowerBound, higherBound = batchNormActBounds[0],batchNormActBounds[1]
+def CoL(IT, W, L, activBounds, indxLookUpTable):
+    lowerBound, higherBound = activBounds[0], activBounds[1]
     (numBatches, numChannels, fmHeight, fmWidth) = IT.size()
     #assert len(IT.size())==4, f'Input Tensor not 4D {IT.size()}'
     #assert fmHeight==fmWidth, f'feature map not square: {IT.size()}'
@@ -70,7 +70,7 @@ def applyFilter(IT,IT_binned,W,L,p_4D, indxLookUpTable):
     print(f'p_4d: {p_4D}')
     """
     (numBatch,numChannels,fmHeight,fmWidth)  = IT.size()
-    (sfHeight,sfWidth,sfDepth) = W.size()
+    (sfDepth, sfHeight,sfWidth) = W.size()
     pBatch, pChan, pRow, pCol = p_4D[0], p_4D[1], p_4D[2], p_4D[3]
 
     if(TIMING):

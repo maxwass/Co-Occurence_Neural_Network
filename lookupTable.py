@@ -5,21 +5,27 @@ from colUtils import *
 
 #define necessary data types
 
-maxNumNeighbors = 27
+#maxNumNeighbors = 27
 a = np.int16(1)
 dt_4D = type((a,a,a,a))#np.dtype(('uint8', (4,)))
 dt_3D = type((a,a,a,a))#np.dtype(('uint8', (3,)))
-dt = np.dtype([('numNeighbors', np.uint16),\
-     ('fmNeighbors', dt_4D, maxNumNeighbors),\
-     ('sfNeighbors', dt_3D, maxNumNeighbors)])
+#dt = np.dtype([('numNeighbors', np.uint16),\
+#     ('fmNeighbors', dt_4D, maxNumNeighbors),\
+#     ('sfNeighbors', dt_3D, maxNumNeighbors)])
 
 #p_4d = np.zeros(maxNumNeighbors,dtype=dt_4D)
 #p_3d = np.ones(maxNumNeighbors,dtype=dt_3D)
 
-def genLookUpTable(IT_dims, W_dims):
+def genLookUpTable(IT_dims, W_dims, maxNumNeighbors):
+
+    dt = np.dtype([('numNeighbors', np.uint16),\
+            ('fmNeighbors', dt_4D, maxNumNeighbors),\
+            ('sfNeighbors', dt_3D, maxNumNeighbors)])
+
     numBatches, numChannels, fmHeight, fmWidth = IT_dims[0], IT_dims[1], IT_dims[2], IT_dims[3]
-    sfWidth, sfDepth = W_dims[1], W_dims[2]
-    assert fmHeight==fmWidth, f'fmHeight {fmHeight} must equal fmWidth: {fmWidth}'
+    sfDepth, sfHeight, sfWidth = W_dims[0], W_dims[1],  W_dims[2]
+    assert fmHeight==fmWidth, f'fmHeight {fmHeight} must equal fmWidth {fmWidth}'
+    assert sfHeight==sfWidth, f'sfHeight {sfHeight} must equal sfWidth {sfWidth}'
 
     lookupTableIndxs = np.zeros((numBatches, numChannels, fmWidth, fmWidth), dtype=dt)
     DEBUG = False

@@ -16,7 +16,7 @@ def test_genLookUpTable():
     borderSize = np.floor_divide(sfWidth,2)
 
     IT = torch.zeros((numBatches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
-    W = torch.ones((sfWidth,sfWidth,sfDepth), requires_grad=True,dtype=torch.float32)
+    W = torch.ones((sfDepth,sfWidth,sfWidth), requires_grad=True,dtype=torch.float32)
 
     indxLookUpTable = genLookUpTable(IT.size(), W.size())
     print(indxLookUpTable)

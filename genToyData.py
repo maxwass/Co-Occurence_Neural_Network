@@ -102,7 +102,6 @@ pixel_vals = [0.0,0.333,0.666,1.0]
 distribs = np.array([[0.1,0.4,0.4,0.1],[0.4,0.1,0.1,0.4]])
 batch_size, num_workers = 3, 2
 
-#FROM PAPER CODE
 lr = 1e-4
 trainset    = ToyData(train_size, num_classes, image_size, distribs, random_offset, pixel_vals)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -110,8 +109,6 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuff
 testset    = ToyData(test_size, num_classes, image_size, distribs, random_offset, pixel_vals)
 testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 classes    = ('0: .1 .4 .4 .1', '1: .4 .1 .1 .4')
-
-
 
 
 torch.set_printoptions(precision=2)

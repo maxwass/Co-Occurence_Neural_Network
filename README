@@ -46,7 +46,7 @@ TODO:
         to normalize input (per batch or per channel)
         optomize forward pass
     
-    Initialize weights
+    Initialize weights: truncate normal
     
     train small FC/conv network on toy data and make plot
     

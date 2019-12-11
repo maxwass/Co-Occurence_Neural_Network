@@ -82,7 +82,9 @@ def test_applyFilter():
     L_mdl_deriv[2,1], L_mdl_deriv[2,2],  L_mdl_deriv[2,4] = 9*1,9*2,9*3
 
     #generate look up table for neighbors
-    indxLookUpTable = genLookUpTable(IT.size(), W.size())
+    maxNumNeighbors = np.prod(W.size())
+    input(f'This should be 27: {maxNumNeighbors}...')
+    indxLookUpTable = genLookUpTable(IT.size(), W.size(), maxNumNeighbors)
     print(f'Testing W/L gradients:fmWidth: {fmWidth}, sfWidth: {sfWidth}')
     chan = 2-1
     for p in l:
@@ -343,29 +345,30 @@ def test_col():
     borderSize = np.floor_divide(sfWidth,2)
 
     #zero input tensor
+    lowerBound, upperBound = (0.0,1.0)
+    bins = np.linspace(lowerBound, higherBound,k,endpoint=True)
+
     IT = torch.zeros((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
 
     numLoops = batches*numChannels*fmWidth*fmWidth
-    indxLookUpTable = genLookUpTable(IT.size(), (sfWidth,sfWidth,sfDepth))
+    manNumNeighbors = sfDepth*sfWidth*sfWidth
+    indxLookUpTable = genLookUpTable(IT.size(), (sfDepth,sfWidth,sfWidth))
     i = 0
     for batch in range(batches):
         for chan in range(numChannels):
             for row in range(fmWidth):
                 for col in range(fmWidth):
                     #zero input tenso
-                    W= torch.ones((sfWidth,sfWidth,sfDepth), requires_grad=True,dtype=torch.float32)
+                    W= torch.ones((sfDepth,sfWidth,sfWidth), requires_grad=True,dtype=torch.float32)
                     L= torch.ones((k,k), requires_grad=True,dtype=torch.float32)
-                    #print(f'Spatial Filter: \n{W}')
-                    #print(f'Deep CoOccur: \n{L}')
-                    #print(f'Input Tensor: \n{IT}')
-                    OT = CoL(IT, W, L, (0.0,1.0), indxLookUpTable)
+                    OT = CoL(IT, W, L, bins, indxLookUpTable)
                     assert torch.allclose(OT, IT), \
                             f'CoL: IT all zeros\n{IT}, OT should be all zeros, actuall is:\n{OT}'
 
 
                     fp = OT[(batch,chan,row,col)]
                     fp.backward()
-                    assert torch.allclose(W.grad, torch.zeros((sfWidth,sfWidth,sfDepth), dtype=torch.float32)), \
+                    assert torch.allclose(W.grad, torch.zeros((sfDepth, sfWidth,sfWidth), dtype=torch.float32)), \
                             f'CoL: IT all zeros\n{IT}, all grad should be all zeros, actuall is:\n{W.grad}'
                     assert torch.allclose(L.grad, torch.zeros((k,k), dtype=torch.float32)), \
                             f'CoL: IT all zeros\n{IT}, all grad should be all zeros, actuall is:\n{L.grad}'
@@ -384,12 +387,15 @@ def test_col_viz():
 
     input('\n\ntesting COL: NO ASSERTS, JUST VISUAL CHECK')
     print(f'IT dims: ({batches}, {numChannels},{fmWidth},{fmWidth})')
-    print(f'W dims: ({sfWidth},{sfWidth},{sfDepth})')
+    print(f'W dims: ({sfDepth}, {sfWidth}, {sfWidth})')
     print(f'L dims: ({k},{k})')
 
     #zero input tensor
-    IT = torch.ones((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
-    indxLookUpTable = genLookUpTable(IT.size(), W.size())
+    IT   = torch.ones((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
+    indxLookUpTable = genLookUpTable(IT.size(), (sfDepth,sfWidth,sfWidth))
+
+    (lowerBound, UpperBound) = (0,k)
+    bins = np.linspace(lowerBound, higherBound,k,endpoint=True)
     i = 0
     numLoops = batches*numChannels*fmWidth*fmWidth
     for batch in range(batches):
@@ -397,13 +403,12 @@ def test_col_viz():
             for row in range(fmWidth):
                 for col in range(fmWidth):
                     #zero input tenso
-                    W= torch.ones((sfWidth,sfWidth,sfDepth), requires_grad=True,dtype=torch.float32)
+                    W= torch.ones((sfDepth, sfWidth, sfWidth), requires_grad=True,dtype=torch.float32)
                     L= torch.ones((k,k), requires_grad=True,dtype=torch.float32)
                     #print(f'Spatial Filter: \n{W}')
                     #print(f'Deep CoOccur: \n{L}')
                     #print(f'Input Tensor: \n{IT}')
-                    bnBounds = (0,k)
-                    OT = CoL(IT, W, L, bnBounds, indxLookUpTable)
+                    OT = CoL(IT, W, L, bins, indxLookUpTable)
 
                     p = (batch,chan,row,col)
                     fp = OT[(batch,chan,row,col)]
@@ -420,21 +425,26 @@ def test_col_viz():
                     sys.stdout.flush()
 
 
-def internal_profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWidth, k):
+def internal_profile_col(numTrials, batches, numChannels, fmWidth, sfDims, k):
     input('UNCOMMENT TIME RETURNS')
+    sfDepth, sfWidth, _ = sfDims
     borderSize = np.floor_divide(sfWidth,2)
-    W = torch.ones((sfWidth,sfWidth,sfDepth),dtype=torch.float32)
+    W = torch.ones((sfDepth,sfWidth,sfWidth),dtype=torch.float32)
     L = torch.ones((k,k),dtype=torch.float32)
     indxLookUpTable = genLookUpTable(IT.size(), W.size())
 
-    bnBounds = (0.0,1.0)
+    (lowerBound, UpperBound) = (0.0,1.0)
+    bins = np.linspace(lowerBound, higherBound,k,endpoint=True)
+    IT   = torch.rand((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
+
     times = np.zeros((numTrials,3),dtype=np.float64)
     for i in range(numTrials):
-        IT= torch.rand((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
-        OT, inc_times = CoL(IT, W, L, bnBounds, indxLookUpTable)
+        Timing=True
+        OT, inc_times = CoL(IT, W, L, bins, indxLookUpTable)
         times[i,:] = inc_times
         #timeBin, timeUtil, timeAFRest = times[0], times[1], times[2]
         print(f'{i}th CoL run: binning {times[i,0]}, neighUtils {times[i,1]}, restAF {times[i,2]}\n')
+    Timing=False
     print(times)
     times_ave, times_std = np.mean(times,axis=0), np.std(times,axis=0)
     names = ["binning","neighbor finding utils", "rest of applyFilter"]
@@ -443,11 +453,15 @@ def internal_profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWi
         print(f'{name}: {times_ave[i]} +- {times_std[i]}')
 
 
-def profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWidth, k):
+def profile_col(numTrials, batches, numChannels, fmWidth, sfDims, k):
+
+    sfDepth, sfWidth, _ = sfDims
     borderSize = np.floor_divide(sfWidth,2)
     IT         = torch.rand((batches,numChannels,fmWidth,fmWidth), dtype=torch.float32)
     forward, backward  = [], []
-    indxLookUpTable = genLookUpTable((batches,numChannels,fmWidth,fmWidth), (sfWidth,sfWidth,sfDepth))
+
+    maxNumNeighbors = sfDepth*sfWidth*sfWidth
+    indxLookUpTable = genLookUpTable((batches,numChannels,fmWidth,fmWidth), sfDims, maxNumNeighbors)
     for i in range(numTrials):
         batch = np.random.randint(0,batches)
         chan  = np.random.randint(0,numChannels)
@@ -455,8 +469,9 @@ def profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWidth, k):
         col   = np.random.randint(0,fmWidth)
         p = (batch,chan,row,col)
 
-        W = torch.ones((sfWidth,sfWidth,sfDepth), requires_grad=True,dtype=torch.float32)
+        W = torch.ones((sfDepth, sfWidth,sfWidth), requires_grad=True,dtype=torch.float32)
         L = torch.ones((k,k), requires_grad=True,dtype=torch.float32)
+
 
         with torch.autograd.profiler.profile() as prof:
             t0 = time.time()
@@ -487,10 +502,11 @@ def profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWidth, k):
 numTrials = 5
 batches, numChannels, fmWidth = 2, 128, 8
 sfDepth, sfWidth = 3, 3
+sfDims = (sfDepth,sfWidth,sfWidth)
 k = 5
 
-#internal_profile_col(numTrials, batches, numChannels, fmWidth, sfDepth,    sfWidth, k)
-#profile_col(numTrials, batches, numChannels, fmWidth, sfDepth, sfWidth, k)
+#internal_profile_col(numTrials, batches, numChannels, fmWidth, sfDims, k)
+profile_col(numTrials, batches, numChannels, fmWidth, sfDims, k)
 test_applyFilter()
 test_col()
 #test_col_viz()
