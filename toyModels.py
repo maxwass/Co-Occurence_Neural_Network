@@ -12,6 +12,54 @@ from lookupTable import genLookUpTable
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+"""
+print(f'\n\nInput x : {x.shape}')
+print(f'\n\nconv(1x1x9) x : {x.shape}')
+print(f'\n\npool(1x9) x : {x.shape}')
+print(f'\n\nreshape(36) x : {x.shape}')
+print(f'\n\nfc(36,2) x : {x.shape}')
+input('before return x in forward\n\n')
+"""
+
+
+#conv(1×1×9)→avg(9×9)→fc(36×2)
+class conv119(nn.Module):
+    def __init__(self):
+        super(conv119,self).__init__()
+        self.conv = nn.Conv2d(in_channels=1,out_channels=9, kernel_size=1, stride=1)
+        self.pool = nn.AvgPool2d(kernel_size=9, stride=1, padding=0,count_include_pad=False)
+        self.fc = nn.Linear(2*2*9, 2, bias=True)
+
+    def forward(self, x):
+        x = F.relu(self.conv(x)) #(3,1,10,10) -> (3, 9, 10, 10)
+        x = self.pool(x) #-> (3, 9, 2, 2)
+        x = x.view(-1, 2*2*9) #-> (3, 36)
+        x = self.fc(x) # -> (3,2)
+        return x
+
+#conv(3×3×2)→avg(7×7)→fc(32×2)
+class conv332(nn.Module):
+    def __init__(self):
+        super(conv332,self).__init__()
+        self.conv = nn.Conv2d(in_channels=1,out_channels=2, kernel_size=3, stride=1, padding=1, padding_mode='zeros')
+        self.pool = nn.AvgPool2d(kernel_size=7, stride=1, padding=0,count_include_pad=False)
+        self.fc = nn.Linear(4*4*2, 2, bias=True)
+
+    def forward(self, x):
+        #print(f'\n\nInput x : {x.shape}')
+        x = F.relu(self.conv(x)) # (3,1,10,10) -> (3, 2, 10, 10)
+        #print(f'\n\nconv(3x3x2) x : {x.shape}')
+        x = self.pool(x) #-> (3, 2, 4, 4)
+        #print(f'\n\npool(7x7) x : {x.shape}')
+        x = x.view(-1, 4*4*2) #-> (3, 32)
+        #print(f'\n\nreshape(32) x : {x.shape}')
+        x = self.fc(x) # -> (3,2)
+        #print(f'\n\nfc(32,2) x : {x.shape}')
+        #input('before return x in forward\n\n')
+        return x
+
+
 #conv(3×3×9) → avg(9×9) → fc(36×2)
 class conv339(nn.Module):
     def __init__(self):
@@ -53,7 +101,7 @@ class CoL_Module(nn.Module):                                       #HxWxD
                 'CoL_Module given improper shape for cooccurence matrix: {co_shape}'
 
         (w_depth, w_height,w_width) = w_shape
-        print(f'spatial filter W dims: ({w_height}, {w_width}, {w_depth})')
+        print(f'spatial filter W dims (D,H,W): ({w_depth}, {w_height}, {w_width})')
         assert w_height==w_width and \
                 isinstance(w_height,int) and \
                 isinstance(w_depth,int) and \
@@ -67,7 +115,7 @@ class CoL_Module(nn.Module):                                       #HxWxD
         self.learn_co          = learn_co
         self.learn_w           = learn_w
         self.input_tensor_size = input_tensor_size
-        self.neighbor_lookup_table = genLookUpTable(input_tensor_size, (w_width,w_width,w_depth)) #must be square in 2D
+        self.neighbor_lookup_table = genLookUpTable(input_tensor_size, w_shape)
         self.activBounds = (0.0,1.0) #inputs are limited to be between 0 and 1
         self.bins = np.linspace(self.activBounds[0], self.activBounds[1], self.k, endpoint=True)
 
@@ -85,7 +133,7 @@ class CoL_Module(nn.Module):                                       #HxWxD
 
     def forward(self, input_tensor):
         # TODO normalize input between (0,1)
-        return CoL(input_tensor, self.W, self.L, self.acivtBounds, self.neighbor_lookup_table)
+        return CoL(input_tensor, self.W, self.L, self.activBounds, self.neighbor_lookup_table)
 
     def extra_repr(self):
         return f'L=({self.k},{self.k}), W={self.w_shape}'
@@ -106,9 +154,9 @@ class CoL_Module(nn.Module):                                       #HxWxD
 
 #CoL(4×4)→avg(5×5)→fc(36×2)
 class ColNet(nn.Module):
-    def __init__(self, input_tensor_size):
+    def __init__(self, input_tensor_size, k, w_shape):
         super(ColNet, self).__init__()                          #DepthxHeightxWidth
-        self.col = CoL_Module(input_tensor_size, co_shape=(4,4), w_shape=(1,3,3), learn_w=False)
+        self.col = CoL_Module(input_tensor_size, co_shape=(k,k), w_shape=w_shape, learn_w=False)
         self.pool = nn.AvgPool2d((5,5), stride=1, padding=0,count_include_pad=False)
         self.fc = nn.Linear(36, 2, bias=True)
 

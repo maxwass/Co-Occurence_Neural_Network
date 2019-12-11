@@ -46,10 +46,6 @@ TODO:
         to normalize input (per batch or per channel)
         optomize forward pass
     
+    Get code running on cloud/server with CUDA
+
     Initialize weights: truncate normal
-    
-    train small FC/conv network on toy data and make plot
-    
-    look into training network on university server
-    
-    make CoL NN module

@@ -28,7 +28,7 @@ class ToyData(VisionDataset):
         self.random_offset = random_offset
         self.distribs = distribs
         self.dataset = []
-        self.__getInfo__()
+        #self.__getInfo__()
         self.__genData__()
 
     # generate all the data now and save in list for indexing later

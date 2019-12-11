@@ -4,7 +4,7 @@ import torchvision
 from torchvision.datasets import CIFAR10, CIFAR100, SVHN, VisionDataset
 from torch.utils.data import Dataset
 import numpy as np
-
+from statistics import mean
 import os.path
 
 from genToyData import *
@@ -53,11 +53,18 @@ input_tensor_shape = (batch_size,)+image_size
 
 
 #choose network
-network = "fc"
+network = "conv332"
 if network=="col":
     PATH = './models/col_net.pth'
-    net = ColNet(input_tensor_shape) #params 90
-elif network=="conv":
+    w_shape = (1,3,3)
+    net = ColNet(input_tensor_shape, 4, w_shape) #params 90
+elif network=="conv332":
+    net = conv332() #params: 86
+    PATH = './models/conv332_net.pth'
+elif network=="conv119":
+    net = conv119() #params: 92
+    PATH = './models/conv119_net.pth'
+elif network=="conv339":
     net = conv339() #params: 164 (155 from my calc, must be bias in convs)
     PATH = './models/conv339_net.pth'
 elif network=="fc":
@@ -70,12 +77,12 @@ if os.path.isfile(PATH):
     net.eval()
     print (f'Model {network} Exists in {PATH}: loading old params...')
 else:
-    print ("Model {network} does not exist, starting cold...")
+    print (f'Model {network} does not exist, starting cold...')
 
 num_net_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
 print(f'# Model Parameters: {num_net_params}')
 print(str(net))
-
+input("QUIT NOW...")
 #Where to train model
 #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
@@ -102,8 +109,10 @@ torch.set_printoptions(precision=2)
 #training loop
 running_loss, best_loss = 0.0, np.inf
 j = 0
+times = []
 for epoch in range(num_iterations):  # loop over the dataset multiple times
     for i, data in enumerate(trainloader, 0):
+        t0 = time.time()
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data
         #inputs, labels = data[0].to(device), data[1].to(device)
@@ -121,22 +130,24 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
             best_loss = loss.item()
             #save params
             torch.save(net.state_dict(), PATH)
-
+        t1 = time.time()
+        image_per_time = float(batch_size)/(t1-t0)
+        times.append(image_per_time)
         if i % 100 == 99:    # every 1000 mini-batches...
 
             # ...log the running loss
-            writer.add_scalar('training loss', running_loss / 1000,global_step=j)# epoch * len(trainloader) + i)
-
-            # ...log a Matplotlib Figure showing the model's predictions on a random mini-batch
-            #TODO
-            #writer.add_figure('predictions vs. actuals', plot_classes_preds(net, inputs, labels), global_step=epoch * len(trainloader) + i)
+            writer.add_scalar('training loss', running_loss / 1000,global_step=j)
             running_loss = 0.0
-            print(f'{epoch} epoch, {i}th minibatch loop')
             acc_train = compute_acc(trainset,"train")
             acc_test  = compute_acc(testset, "test")
             writer.add_scalar('test accuracy', acc_test,global_step=j)
             writer.add_scalar('train accuracy', acc_train,global_step=j)
             writer.flush()
+            print(f'{epoch} epoch, {i}th minibatch loop')
+            print(f'\tloss: {loss.item()}')
+            t = np.asarray(times)
+            print(f'\timage/time: {np.mean(t)/1000}, +- {np.std(t)/1000}')
+            times.clear()
             if(False):
                 print(f'outputs: {outputs}')
                 print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')

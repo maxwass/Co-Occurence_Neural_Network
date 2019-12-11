@@ -16,8 +16,8 @@ dt_3D = type((a,a,a,a))#np.dtype(('uint8', (3,)))
 #p_4d = np.zeros(maxNumNeighbors,dtype=dt_4D)
 #p_3d = np.ones(maxNumNeighbors,dtype=dt_3D)
 
-def genLookUpTable(IT_dims, W_dims, maxNumNeighbors):
-
+def genLookUpTable(IT_dims, W_dims):
+    maxNumNeighbors = np.prod(np.asarray(W_dims))
     dt = np.dtype([('numNeighbors', np.uint16),\
             ('fmNeighbors', dt_4D, maxNumNeighbors),\
             ('sfNeighbors', dt_3D, maxNumNeighbors)])
