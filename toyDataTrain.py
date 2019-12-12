@@ -40,7 +40,7 @@ pixel_vals = [0.0,0.333,0.666,1.0]
 distribs   = np.array([[0.1,0.4,0.4,0.1],[0.4,0.1,0.1,0.4]])
 
 lr = 1e-4
-num_iterations, batch_size, num_workers = 2000, 3, 2
+num_iterations, batch_size, num_workers = 2000, 2, 2
 train_size, test_size, num_classes, random_offset = 6000, 1000, 2, 3
 trainset    = ToyData(train_size, num_classes, image_size, distribs, random_offset, pixel_vals)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -53,7 +53,7 @@ input_tensor_shape = (batch_size,)+image_size
 
 
 #choose network
-network = "conv332"
+network = "col"
 if network=="col":
     PATH = './models/col_net.pth'
     w_shape = (1,3,3)
@@ -82,7 +82,7 @@ else:
 num_net_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
 print(f'# Model Parameters: {num_net_params}')
 print(str(net))
-input("QUIT NOW...")
+
 #Where to train model
 #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
@@ -108,20 +108,16 @@ writer.close()
 torch.set_printoptions(precision=2)
 #training loop
 running_loss, best_loss = 0.0, np.inf
-j = 0
 times = []
 for epoch in range(num_iterations):  # loop over the dataset multiple times
+    t0 = time.time_ns()
     for i, data in enumerate(trainloader, 0):
-        t0 = time.time()
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
-        #inputs, labels = data[0].to(device), data[1].to(device)
-        # zero the parameter gradients
+        inputs, labels = data #data is a list of [inputs, labels]
         optimizer.zero_grad()
 
         # forward + backward + optimize
         outputs = net(inputs)
-        loss = criterion(outputs, labels)
+        loss    = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
@@ -130,13 +126,38 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
             best_loss = loss.item()
             #save params
             torch.save(net.state_dict(), PATH)
-        t1 = time.time()
-        image_per_time = float(batch_size)/(t1-t0)
-        times.append(image_per_time)
-        if i % 100 == 99:    # every 1000 mini-batches...
+        if True and (i % 10 == 9):    # every 100 mini-batches...
+            print(f'{epoch} epoch, {i}th minibatch loop')
+            print(f'\tloss: {loss.item():.3}')
+
+    #log/display after each epoch
+    t1 = time.time_ns()
+    epoch_time = (t1-t0)/(10**9)
+    times.append(epoch_time)
+    writer.add_scalar('training loss', running_loss / 100 , global_step=epoch)
+    acc_train, acc_test = compute_acc(trainset,"train"), compute_acc(testset, "test")
+    writer.add_scalar('test accuracy', acc_test,global_step=epoch)
+    writer.add_scalar('train accuracy', acc_train,global_step=epoch)
+    writer.add_scalar('epoch/s', epoch_time, global_step=epoch)
+    writer.flush()
+    print(f'\n{epoch} epoch')
+    print(f'\trunning loss: {running_loss:.3}')
+    running_loss = 0.0
+    t = np.asarray(times)
+    print(f'\tepoch/s: {epoch_time:.3},  mean: {np.mean(t):.3}, +- {np.std(t):.3}')
+    #print(f'\ttrain acc: {acc_train:.3}, test_acc: {acc_test:.3}\n')
+    #times.clear()
+    """
+    if(False):
+        print(f'outputs: {outputs}')
+        print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')
+        _, pred = torch.max(outputs.data, 1)
+        inspect_batch(data,outputs=pred,print_img=True)
+
+    if i % 100 == 99:    # every 1000 mini-batches...
 
             # ...log the running loss
-            writer.add_scalar('training loss', running_loss / 1000,global_step=j)
+            writer.add_scalar('training loss', running_loss / 100,global_step=j)
             running_loss = 0.0
             acc_train = compute_acc(trainset,"train")
             acc_test  = compute_acc(testset, "test")
@@ -153,7 +174,7 @@ for epoch in range(num_iterations):  # loop over the dataset multiple times
                 print(f'torch.max(outputs.data, 1): {torch.max(outputs.data, 1)}')
                 _, pred = torch.max(outputs.data, 1)
                 inspect_batch(data,outputs=pred,print_img=True)
-        j+=1
+        """
 
 print('Finished Training')
 
