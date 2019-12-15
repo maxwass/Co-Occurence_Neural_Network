@@ -1,10 +1,18 @@
-installs
+To Run:
+
+1)alter code in toyDataTrain.py to train model of interest with desired hyperparameters.
+2)python toyDataTrain.py
+
+
+
+------
+installed:
 conda pytorch
 conda install -c conda-forge torchvision
 conda install torchvision -c pytorch
 
 
-
+--------
     ANSWERED QUESTIONS
 reLu need before cross entropy?
 NO: https://stats.stackexchange.com/questions/166595/how-to-apply-cross-entropy-on-rectified-linear-units
