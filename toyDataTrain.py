@@ -1,7 +1,7 @@
 import torch
 from torchvision import transforms
 import torchvision
-from torchvision.datasets import CIFAR10, CIFAR100, SVHN, VisionDataset
+from torchvision.datasets import CIFAR10#, CIFAR100, SVHN, VisionDataset
 from torch.utils.data import Dataset
 import numpy as np
 from statistics import mean
@@ -40,7 +40,7 @@ pixel_vals = [0.0,0.333,0.666,1.0]
 distribs   = np.array([[0.1,0.4,0.4,0.1],[0.4,0.1,0.1,0.4]])
 
 lr = 1e-4
-num_iterations, batch_size, num_workers = 2000, 2, 2
+num_iterations, batch_size, num_workers = 2000, 15, 5
 train_size, test_size, num_classes, random_offset = 6000, 1000, 2, 3
 trainset    = ToyData(train_size, num_classes, image_size, distribs, random_offset, pixel_vals)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
